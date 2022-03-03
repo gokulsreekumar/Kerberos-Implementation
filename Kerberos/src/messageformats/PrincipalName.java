@@ -1,0 +1,17 @@
+package messageformats;
+
+public class PrincipalName implements ImmutablePrincipalName {
+    /*
+        This field encodes a sequence of components that form a name, each component encoded as a KerberosString.
+        Taken together, a PrincipalName and a Realm form a principal identifier.
+     */
+    private String nameString;
+
+    public String getNameString() {
+        return nameString;
+    }
+
+    public void setNameString(String nameString) {
+        this.nameString = nameString;
+    }
+}
