@@ -1,17 +1,17 @@
 package messageformats;
 
-import java.security.Timestamp;
+import java.sql.Timestamp;
 import java.util.Optional;
 
 public class KrbKdcReq implements ImmutableKrbKdcReq {
     /*
-       This field specifies all components of the name part of the
-       server’s identity, including those parts that identify a specific
-       instance of a service.
+       This field contains the name part of the client’s principal identifier.
      */
     private PrincipalName cname;
     /*
-       This field contains the name part of the client’s principal identifier.
+       This field specifies all components of the name part of the
+       server’s identity, including those parts that identify a specific
+       instance of a service.
      */
     private PrincipalName sname;
     /*
@@ -31,6 +31,24 @@ public class KrbKdcReq implements ImmutableKrbKdcReq {
       This field specifies the desired encryption algorithm to be used in the response.
      */
     private int etype; // TODO: is this needed?
+
+    public KrbKdcReq(PrincipalName cname, PrincipalName sname, Optional<Timestamp> from, Timestamp till, int nonce, int etype) {
+        this.cname = cname;
+        this.sname = sname;
+        this.from = from;
+        this.till = till;
+        this.nonce = nonce;
+        this.etype = etype;
+    }
+
+    public KrbKdcReq(PrincipalName cname, PrincipalName sname, Timestamp till, int nonce, int etype) {
+        this.cname = cname;
+        this.sname = sname;
+        this.till = till;
+        this.nonce = nonce;
+        this.etype = etype;
+    }
+
 
     public PrincipalName getCname() {
         return cname;

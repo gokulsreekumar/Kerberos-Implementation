@@ -7,6 +7,10 @@ public class PrincipalName implements ImmutablePrincipalName {
      */
     private String nameString;
 
+    public PrincipalName(String nameString) {
+        this.nameString = nameString;
+    }
+
     public String getNameString() {
         return nameString;
     }
