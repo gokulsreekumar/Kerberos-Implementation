@@ -3,7 +3,7 @@ package messageformats;
 import java.sql.Timestamp;
 import java.util.Optional;
 
-public interface ImmutableKrbKdcReq {
+public interface ImmutableKrbKdcReqBody {
     public PrincipalName getCname();
     public PrincipalName getSname();
     public Optional<Timestamp> getFrom();
