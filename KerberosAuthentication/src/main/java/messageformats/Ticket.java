@@ -1,8 +1,11 @@
 package messageformats;
 
+import org.immutables.value.Value;
+
+@Value.Immutable
 public interface Ticket {
     public int getTktVno();
-    public PrincipalName getSname();
+    public messageformats.ImmutablePrincipalName getSname();
     public EncryptedData getEncPart();
 }
 
