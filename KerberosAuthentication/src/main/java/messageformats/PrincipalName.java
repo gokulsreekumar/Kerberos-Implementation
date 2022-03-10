@@ -1,5 +1,5 @@
 package messageformats;
 
-public interface ImmutablePrincipalName {
+public interface PrincipalName {
     public String getNameString();
 }

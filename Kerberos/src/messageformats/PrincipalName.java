@@ -1,6 +1,7 @@
 package messageformats;
 
-public class PrincipalName implements ImmutablePrincipalName {
+@Value.Immutable
+public class PrincipalName {
     /*
         This field encodes a sequence of components that form a name, each component encoded as a KerberosString.
         Taken together, a PrincipalName and a Realm form a principal identifier.

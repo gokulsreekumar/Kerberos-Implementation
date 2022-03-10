@@ -1,9 +1,12 @@
 package messageformats;
 
+import org.immutables.value.Value;
+
 import java.sql.Timestamp;
 import java.util.Optional;
 
-public interface ImmutableKrbKdcReqBody {
+@Value.Immutable
+public interface KrbKdcReqBody {
     public PrincipalName getCname();
     public PrincipalName getSname();
     public Optional<Timestamp> getFrom();

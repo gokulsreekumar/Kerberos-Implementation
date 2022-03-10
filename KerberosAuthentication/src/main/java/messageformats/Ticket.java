@@ -1,7 +1,11 @@
 package messageformats;
 
-public interface ImmutableTicket {
+public interface Ticket {
     public int getTktVno();
     public PrincipalName getSname();
     public EncryptedData getEncPart();
+}
+
+class EncryptedData {
+
 }
