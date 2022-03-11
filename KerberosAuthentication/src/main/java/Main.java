@@ -1,6 +1,7 @@
 import messageformats.*;
 import messageformats.ImmutableKrbKdcReq;
 import messageformats.ImmutableKrbKdcReqBody;
+import messageformats.ImmutablePaData;
 import messageformats.ImmutablePrincipalName;
 
 import java.sql.Timestamp;
@@ -16,7 +17,12 @@ public class Main {
         System.out.println(jessiya);
         System.out.println(gokul);
 
-        ImmutableKrbKdcReqBody krbKdcReqBody = ImmutableKrbKdcReqBody.builder()
+        PaData paData = ImmutablePaData.builder()
+                .padataType(1)
+                .padataValue(new byte[5])
+                .build();
+
+        KrbKdcReqBody krbKdcReqBody = ImmutableKrbKdcReqBody.builder()
                 .cname(jessiya)
                 .sname(gokul)
                 .from(Timestamp.valueOf("2022-03-11 08:00:00"))
@@ -25,7 +31,7 @@ public class Main {
                 .etype(1)
                 .build();
 
-        ImmutableKrbKdcReqBody krbKdcReqBodyNoFrom = ImmutableKrbKdcReqBody.builder()
+        KrbKdcReqBody krbKdcReqBodyNoFrom = ImmutableKrbKdcReqBody.builder()
                 .cname(jessiya)
                 .sname(gokul)
                 .till(Timestamp.valueOf("2022-03-11 23:59:59"))
@@ -33,16 +39,16 @@ public class Main {
                 .etype(1)
                 .build();
 
-        ImmutableKrbKdcReq krbKdcReq = ImmutableKrbKdcReq.builder()
+        KrbKdcReq krbKdcReq = ImmutableKrbKdcReq.builder()
                 .pvno(5)
                 .msgType(10)
-                .paData(new PaData())
+                .paData(paData)
                 .reqBody(krbKdcReqBody)
                 .build();
-        ImmutableKrbKdcReq krbKdcReqNoFrom = ImmutableKrbKdcReq.builder()
+        KrbKdcReq krbKdcReqNoFrom = ImmutableKrbKdcReq.builder()
                 .pvno(5)
                 .msgType(10)
-                .paData(new PaData())
+                .paData(paData)
                 .reqBody(krbKdcReqBodyNoFrom)
                 .build();
 
