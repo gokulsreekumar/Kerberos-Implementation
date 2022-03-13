@@ -6,7 +6,7 @@ import messageformats.*;
 import java.net.*;
 import java.sql.Timestamp;
 import java.util.Random;
-import java.util.random.RandomGenerator;
+import java.util.Scanner;
 
 import static entities.AuthenticationServer.SERVICE_PORT;
 import static utils.Constants.*;
@@ -17,11 +17,29 @@ public class Client {
     /* The server port to which
     the client socket is going to connect */
     public static final PrincipalName client = new PrincipalName("client" + new Random().nextInt(100));
+    private PrincipalName clientKerberosId;
+    private PrincipalName applicationServerKerberosId;
+    private String loginPassword;
     private ImmutableKrbKdcReq asRequest;
     private KrbKdcRep replyFromAs;
 
+    public Client(PrincipalName clientKerberosId, String loginPassword) {
+        this.clientKerberosId = clientKerberosId;
+        this.loginPassword = loginPassword;
+    }
+
     public static void main(String[] args) {
-        Client client = new Client();
+        System.out.println("WELCOME TO KERBEROS AUTHENTICATION SYSTEM!");
+        System.out.println("Please enter your kerberos id and password to get started");
+        Scanner myObj = new Scanner(System.in);
+
+        System.out.print("kerberos id: ");
+        String kerberosId = myObj.nextLine();
+        System.out.print("password: ");
+        String password = myObj.nextLine();
+
+        Client client = new Client(new PrincipalName(kerberosId), password);
+
         client.constructAuthenticationServerRequest();
         client.sendRequestToAsAndReceiveResponse();
     }
@@ -72,7 +90,7 @@ public class Client {
     }
 
     public void constructAuthenticationServerRequest() {
-        KrbKdcReqBody krbKdcReqBody = new KrbKdcReqBody(client,
+        KrbKdcReqBody krbKdcReqBody = new KrbKdcReqBody(clientKerberosId,
                 TGS_SERVER,
                 addDays(new Timestamp(System.currentTimeMillis()), 1),
                 generateNonce(32),
