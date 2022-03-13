@@ -21,7 +21,14 @@ public class AuthenticationServer {
     public final static int SERVICE_PORT = 50001;
     private KrbKdcReq clientRequest;
 
-    public void receiveClientRequest(){
+    public static void main(String[] args) {
+        AuthenticationServer authenticationServer = new AuthenticationServer();
+        authenticationServer.receiveClientRequest();
+//        authenticationServer.constructClientReply();
+//        authenticationServer.sendReplyToClient();
+    }
+
+    public void receiveClientRequest() {
         try {
             /* Instantiate a new DatagramSocket to receive responses from the client */
             DatagramSocket serverSocket = new DatagramSocket(SERVICE_PORT);
@@ -70,20 +77,13 @@ public class AuthenticationServer {
         } catch (Exception e) {
             e.printStackTrace();
         }
-}
+    }
 
-    public void constructClientReply(){
+    public void constructClientReply() {
 
     }
 
-    public void sendReplyToClient(){
+    public void sendReplyToClient() {
 
-    }
-
-    public static void main(String[] args) {
-        AuthenticationServer authenticationServer = new AuthenticationServer();
-        authenticationServer.receiveClientRequest();
-//        authenticationServer.constructClientReply();
-//        authenticationServer.sendReplyToClient();
     }
 }

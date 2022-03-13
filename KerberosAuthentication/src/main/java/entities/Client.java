@@ -19,7 +19,13 @@ public class Client {
     public static final PrincipalName client = new PrincipalName("client");
     private ImmutableKrbKdcReq asKrbRequest;
 
-    public void sendRequestToAs(){
+    public static void main(String[] args) {
+        Client client = new Client();
+        client.constructAuthenticationServerRequest();
+        client.sendRequestToAs();
+    }
+
+    public void sendRequestToAs() {
         try {
             /*
              * Instantiate client socket.
@@ -58,25 +64,9 @@ public class Client {
         }
     }
 
-    public void constructAuthenticationServerRequest(){
-        KrbKdcReqBody krbKdcReqBody = new KrbKdcReqBody(
-                client,
-                tgs_server,
-                addDays(new Timestamp(System.currentTimeMillis()),1),
-                generateNonce(32),
-                1
-                );
+    public void constructAuthenticationServerRequest() {
+        KrbKdcReqBody krbKdcReqBody = new KrbKdcReqBody(client, tgs_server, addDays(new Timestamp(System.currentTimeMillis()), 1), generateNonce(32), 1);
 
-        asKrbRequest = ImmutableKrbKdcReq.builder()
-                .pvno(KerberosVersionNumber)
-                .msgType(AsRequestMesssageType)
-                .reqBody(krbKdcReqBody)
-                .build();
-    }
-
-    public static void main(String[] args) {
-        Client client = new Client();
-        client.constructAuthenticationServerRequest();
-        client.sendRequestToAs();
+        asKrbRequest = ImmutableKrbKdcReq.builder().pvno(KerberosVersionNumber).msgType(AsRequestMesssageType).reqBody(krbKdcReqBody).build();
     }
 }
