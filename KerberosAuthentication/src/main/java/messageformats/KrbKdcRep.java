@@ -12,8 +12,7 @@ public interface KrbKdcRep {
     - principalname
      */
     // padata
-
     String cname();
     Ticket ticket();
-    EncryptedData encPart();
+    EncKdcRepPart encPart();
 }

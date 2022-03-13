@@ -4,8 +4,10 @@ import messageformats.PrincipalName;
 
 public class Constants {
     public static final int KERBEROS_VERSION_NUMBER = 5;
-    public static final int AS_REQUEST_MESSSAGE_TYPE = 10;
+    public static final int AS_REPLY_MESSSAGE_TYPE = 10;
+    public static final int AS_REQUEST_MESSSAGE_TYPE = 11;
     public static final int TGS_REQUEST_MESSSAGE_TYPE = 12;
+    public static final int TGS_REPLY_MESSSAGE_TYPE = 13;
 
 //    public static final ImmutablePrincipalName client = ImmutablePrincipalName.builder()
 //            .nameString("client")
