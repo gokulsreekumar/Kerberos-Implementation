@@ -5,6 +5,8 @@ import messageformats.*;
 
 import java.net.*;
 import java.sql.Timestamp;
+import java.util.Random;
+import java.util.random.RandomGenerator;
 
 import static entities.AuthenticationServer.SERVICE_PORT;
 import static utils.Constants.*;
@@ -14,7 +16,7 @@ import static utils.Helpers.generateNonce;
 public class Client {
     /* The server port to which
     the client socket is going to connect */
-    public static final PrincipalName client = new PrincipalName("client");
+    public static final PrincipalName client = new PrincipalName("client" + new Random().nextInt(100));
     private ImmutableKrbKdcReq asRequest;
     private KrbKdcRep replyFromAs;
 

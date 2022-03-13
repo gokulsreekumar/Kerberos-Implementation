@@ -16,7 +16,6 @@ public class AuthenticationServer {
     private KrbKdcReq clientRequest;
     private KrbKdcRep replyForClient;
 
-
     public static void main(String[] args) {
         AuthenticationServer authenticationServer = new AuthenticationServer();
         while (true) {
