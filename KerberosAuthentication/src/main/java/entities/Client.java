@@ -15,7 +15,8 @@ public class Client {
     /* The server port to which
     the client socket is going to connect */
     public static final PrincipalName client = new PrincipalName("client");
-    private ImmutableKrbKdcReq asKrbRequest;
+    private ImmutableKrbKdcReq asRequest;
+    private KrbKdcRep replyFromAs;
 
     public static void main(String[] args) {
         Client client = new Client();
@@ -36,7 +37,7 @@ public class Client {
 
             /* Serialization of object into json string */
             ObjectMapper objectMapper = new ObjectMapper();
-            String json = objectMapper.writeValueAsString(asKrbRequest);
+            String json = objectMapper.writeValueAsString(asRequest);
 
             /* Convert string to byte array */
             byte[] data = json.getBytes();
@@ -58,8 +59,8 @@ public class Client {
 
             /* Deserialization of json string to object */
             objectMapper = new ObjectMapper();
-            KrbKdcRep deserializedAuthenticationServerReply = objectMapper.readValue(dataString, KrbKdcRep.class);
-            System.out.println(deserializedAuthenticationServerReply.toString());
+            replyFromAs = objectMapper.readValue(dataString, KrbKdcRep.class);
+            System.out.println(replyFromAs.toString());
 
             // Closing the socket connection with the server
             clientSocket.close();
@@ -75,7 +76,7 @@ public class Client {
                 generateNonce(32),
                 1);
 
-        asKrbRequest = ImmutableKrbKdcReq.builder()
+        asRequest = ImmutableKrbKdcReq.builder()
                 .pvno(KERBEROS_VERSION_NUMBER)
                 .msgType(AS_REQUEST_MESSSAGE_TYPE)
                 .reqBody(krbKdcReqBody)
