@@ -46,15 +46,15 @@ public class AuthenticationServer {
 
             /* Deserialization of json string to object */
             ObjectMapper objectMapper = new ObjectMapper();
-            KrbKdcReq deserializedClientRequest = objectMapper.readValue(dataString, KrbKdcReq.class);
-            System.out.println(deserializedClientRequest.toString());
+            clientRequest = objectMapper.readValue(dataString, KrbKdcReq.class);
+            System.out.println(clientRequest.toString());
 
             /* Obtain client's IP address and the port */
             InetAddress senderAddress = inputPacket.getAddress();
             int senderPort = inputPacket.getPort();
 
             // TODO: Add logic for verification of client's identity and other AS functions
-            constructReplyForClient(deserializedClientRequest);
+            constructReplyForClient();
 
             /* Serialization of reply object into json string */
             objectMapper = new ObjectMapper();
@@ -76,7 +76,7 @@ public class AuthenticationServer {
         }
     }
 
-    public void constructReplyForClient(KrbKdcReq krbKdcReq) {
+    public void constructReplyForClient() {
         // TODO: Do the real encryption and decryption
         String sampleString = "Hello World";
         byte[] sampleCipher = sampleString.getBytes();
@@ -87,10 +87,9 @@ public class AuthenticationServer {
         replyForClient = ImmutableKrbKdcRep.builder()
                 .pvno(KERBEROS_VERSION_NUMBER)
                 .msgType(AS_REPLY_MESSSAGE_TYPE)
-                .cname(krbKdcReq.reqBody().getCname())
+                .cname(clientRequest.reqBody().getCname())
                 .ticket(sampleTicketTGS)
                 .encPart(sampleEncData)
                 .build();
     }
-
 }
