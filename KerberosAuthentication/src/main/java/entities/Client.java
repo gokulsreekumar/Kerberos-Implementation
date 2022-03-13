@@ -1,9 +1,7 @@
 package entities;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import messageformats.ImmutableKrbKdcReq;
-import messageformats.KrbKdcReqBody;
-import messageformats.PrincipalName;
+import messageformats.*;
 
 import java.net.*;
 import java.sql.Timestamp;
@@ -49,13 +47,19 @@ public class Client {
             // sending UDP packet to the server
             clientSocket.send(sendingPacket);
 
-//            // Get the server response .i.e. capitalized sentence
-//            DatagramPacket receivingPacket = new DatagramPacket(receivingDataBuffer, receivingDataBuffer.length);
-//            clientSocket.receive(receivingPacket);
+            byte[] receivingDataBuffer = new byte[1024];
 
-//            // Printing the received data
-//            String receivedData = byteArrayToString(receivingPacket.getData());
-//            System.out.println("Sent from the server: " + receivedData.stripTrailing());
+            // Get the server response
+            DatagramPacket receivingPacket = new DatagramPacket(receivingDataBuffer, receivingDataBuffer.length);
+            clientSocket.receive(receivingPacket);
+
+            byte[] dataReceived = receivingPacket.getData();
+            String dataString = new String(dataReceived);
+
+            /* Deserialization of json string to object */
+            objectMapper = new ObjectMapper();
+            KrbKdcRep deserializedAuthenticationServerReply = objectMapper.readValue(dataString, KrbKdcRep.class);
+            System.out.println(deserializedAuthenticationServerReply.toString());
 
             // Closing the socket connection with the server
             clientSocket.close();

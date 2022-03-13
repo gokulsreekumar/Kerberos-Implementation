@@ -1,8 +1,7 @@
 package entities;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import messageformats.ImmutableKrbKdcReq;
-import messageformats.KrbKdcReq;
+import messageformats.*;
 import org.apache.commons.lang3.SerializationUtils;
 
 import java.io.ByteArrayInputStream;
@@ -15,11 +14,15 @@ import java.net.InetAddress;
 import java.net.SocketException;
 import java.nio.ByteBuffer;
 
+import static utils.Constants.*;
+
 public class AuthenticationServer {
     /* The server port to which
     the client socket is going to connect */
     public final static int SERVICE_PORT = 50001;
     private KrbKdcReq clientRequest;
+    private KrbKdcRep replyForClient;
+
 
     public static void main(String[] args) {
         AuthenticationServer authenticationServer = new AuthenticationServer();
@@ -53,24 +56,25 @@ public class AuthenticationServer {
             KrbKdcReq deserializedClientRequest = objectMapper.readValue(dataString, KrbKdcReq.class);
             System.out.println(deserializedClientRequest.toString());
 
-//            /*
-//             * Convert client sent data string to upper case,
-//             * Convert it to bytes and store it in the corresponding buffer.
-//             */
-//            sendingDataBuffer = receivedData.toUpperCase().getBytes();
+            /* Obtain client's IP address and the port */
+            InetAddress senderAddress = inputPacket.getAddress();
+            int senderPort = inputPacket.getPort();
 
-//            /* Obtain client's IP address and the port */
-//            InetAddress senderAddress = inputPacket.getAddress();
-//            int senderPort = inputPacket.getPort();
-//
-//            /* Create new UDP packet with data to send to the client */
-//            DatagramPacket outputPacket = new DatagramPacket(
-//                    sendingDataBuffer, sendingDataBuffer.length,
-//                    senderAddress, senderPort
-//            );
-//
-//            /* Send the created packet to client */
-//            serverSocket.send(outputPacket);
+            // TODO: Add logic for verification of client's identity and other AS functions
+            constructReplyForClient(deserializedClientRequest);
+
+            /* Serialization of reply object into json string */
+            objectMapper = new ObjectMapper();
+            String json = objectMapper.writeValueAsString(replyForClient);
+
+            /* Convert string to byte array */
+            byte[] data = json.getBytes();
+
+            /* Creating a UDP packet */
+            DatagramPacket replyPacket = new DatagramPacket(data, data.length, senderAddress, senderPort);
+
+            /* Send the created packet to client */
+            serverSocket.send(replyPacket);
 
             /* Close the socket connection */
             serverSocket.close();
@@ -79,8 +83,21 @@ public class AuthenticationServer {
         }
     }
 
-    public void constructClientReply() {
+    public void constructReplyForClient(KrbKdcReq krbKdcReq) {
+        // TODO: Do the real encryption and decryption
+        String sampleString = "Hello World";
+        byte[] sampleCipher = sampleString.getBytes();
 
+        EncryptedData sampleEncData = new EncryptedData(1, KERBEROS_VERSION_NUMBER, sampleCipher);
+        Ticket sampleTicketTGS = new Ticket(AS_SERVER, sampleEncData);
+
+        replyForClient = ImmutableKrbKdcRep.builder()
+                .pvno(KERBEROS_VERSION_NUMBER)
+                .msgType(AS_REPLY_MESSSAGE_TYPE)
+                .cname(krbKdcReq.reqBody().getCname())
+                .ticket(sampleTicketTGS)
+                .encPart(sampleEncData)
+                .build();
     }
 
     public void sendReplyToClient() {

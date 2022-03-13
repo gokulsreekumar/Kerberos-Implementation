@@ -1,6 +1,4 @@
 import messageformats.*;
-import messageformats.ImmutableKrbKdcReq;
-import messageformats.ImmutablePaData;
 
 import java.sql.Timestamp;
 
@@ -15,10 +13,10 @@ public class Main {
 //        System.out.println(jessiya);
 //        System.out.println(gokul);
 
-        PaData paData = ImmutablePaData.builder()
-                .padataType(1)
-                .padataValue(new byte[5])
-                .build();
+//        PaData paData = ImmutablePaData.builder()
+//                .padataType(1)
+//                .padataValue(new byte[5])
+//                .build();
 
 //        KrbKdcReqBody krbKdcReqBody = ImmutableKrbKdcReqBody.builder()
 //                .cname(jessiya)
