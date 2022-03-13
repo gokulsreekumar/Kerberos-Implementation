@@ -2,17 +2,10 @@ package entities;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import messageformats.*;
-import org.apache.commons.lang3.SerializationUtils;
 
-import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
-import java.io.ObjectInputStream;
-import java.math.BigInteger;
 import java.net.DatagramPacket;
 import java.net.DatagramSocket;
 import java.net.InetAddress;
-import java.net.SocketException;
-import java.nio.ByteBuffer;
 
 import static utils.Constants.*;
 
@@ -26,12 +19,12 @@ public class AuthenticationServer {
 
     public static void main(String[] args) {
         AuthenticationServer authenticationServer = new AuthenticationServer();
-        authenticationServer.receiveClientRequest();
-//        authenticationServer.constructClientReply();
-//        authenticationServer.sendReplyToClient();
+        while (true) {
+            authenticationServer.receiveClientRequestAndReply();
+        }
     }
 
-    public void receiveClientRequest() {
+    public void receiveClientRequestAndReply() {
         try {
             /* Instantiate a new DatagramSocket to receive responses from the client */
             DatagramSocket serverSocket = new DatagramSocket(SERVICE_PORT);
@@ -100,7 +93,4 @@ public class AuthenticationServer {
                 .build();
     }
 
-    public void sendReplyToClient() {
-
-    }
 }
