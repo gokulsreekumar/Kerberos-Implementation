@@ -1,10 +1,51 @@
 package messageformats;
 
-import org.immutables.value.Value;
+import java.io.Serializable;
 
-@Value.Immutable
-public interface Ticket {
-    int tktVno();
-    PrincipalName sname();
-    EncryptedData encPart();
+import static utils.Constants.*;
+
+public class Ticket implements Serializable {
+    int tktVno;
+    PrincipalName sname;
+    EncryptedData encPart; // EncTicketPart
+
+    // For Deserialization
+    public Ticket() {
+    }
+
+    public Ticket(int tktVno, PrincipalName sname, EncryptedData encPart) {
+        this.tktVno = tktVno;
+        this.sname = sname;
+        this.encPart = encPart;
+    }
+
+    public Ticket(PrincipalName sname, EncryptedData encPart) {
+        this.tktVno = TICKET_VERSION_NUMBER;
+        this.sname = sname;
+        this.encPart = encPart;
+    }
+
+    public int getTktVno() {
+        return tktVno;
+    }
+
+    public void setTktVno(int tktVno) {
+        this.tktVno = tktVno;
+    }
+
+    public PrincipalName getSname() {
+        return sname;
+    }
+
+    public void setSname(PrincipalName sname) {
+        this.sname = sname;
+    }
+
+    public EncryptedData getEncPart() {
+        return encPart;
+    }
+
+    public void setEncPart(EncryptedData encPart) {
+        this.encPart = encPart;
+    }
 }

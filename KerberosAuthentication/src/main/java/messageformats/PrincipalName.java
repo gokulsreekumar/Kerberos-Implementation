@@ -12,6 +12,10 @@ import java.io.Serializable;
 public class PrincipalName implements Serializable {
     String nameString;
 
+    // For Deserialization
+    public PrincipalName() {
+    }
+
     public PrincipalName(String nameString) {
         this.nameString = nameString;
     }
@@ -22,8 +26,5 @@ public class PrincipalName implements Serializable {
 
     public void setNameString(String nameString) {
         this.nameString = nameString;
-    }
-
-    public PrincipalName() {
     }
 }
