@@ -27,4 +27,11 @@ public class PrincipalName implements Serializable {
     public void setNameString(String nameString) {
         this.nameString = nameString;
     }
+
+    @Override
+    public String toString() {
+        return "PrincipalName{" +
+                "nameString='" + nameString + '\'' +
+                '}';
+    }
 }
