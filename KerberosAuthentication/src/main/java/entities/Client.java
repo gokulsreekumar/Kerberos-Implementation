@@ -67,6 +67,6 @@ public class Client {
     public void constructAuthenticationServerRequest() {
         KrbKdcReqBody krbKdcReqBody = new KrbKdcReqBody(client, TGS_SERVER, addDays(new Timestamp(System.currentTimeMillis()), 1), generateNonce(32), 1);
 
-        asKrbRequest = ImmutableKrbKdcReq.builder().pvno(KerberosVersionNumber).msgType(AsRequestMesssageType).reqBody(krbKdcReqBody).build();
+        asKrbRequest = ImmutableKrbKdcReq.builder().pvno(KERBEROS_VERSION_NUMBER).msgType(AS_REQUEST_MESSSAGE_TYPE).reqBody(krbKdcReqBody).build();
     }
 }

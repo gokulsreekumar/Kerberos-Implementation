@@ -10,7 +10,6 @@ public class Helpers {
 
     public static int generateNonce(int noOfBits) {
         Random random = new Random();
-
         return random.nextInt(noOfBits);
     }
 
