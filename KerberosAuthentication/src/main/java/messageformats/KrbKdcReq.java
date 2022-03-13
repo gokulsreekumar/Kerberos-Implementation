@@ -19,6 +19,7 @@ public interface KrbKdcReq {
 
     int pvno();
     int msgType();
+    PaData[] paData();
     KrbKdcReqBody reqBody();
 }
 

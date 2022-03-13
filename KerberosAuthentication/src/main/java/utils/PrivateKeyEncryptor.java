@@ -91,7 +91,7 @@ public class PrivateKeyEncryptor {
         return new String(plainText);
     }
 
-    public static EncryptionData getEncryptionUsingPassword(String plainText, String password, IvParameterSpec ivParameterSpec)
+    public static EncryptionData getEncryptionUsingPassword(String plainText, String password)
             throws NoSuchAlgorithmException, InvalidKeySpecException, InvalidAlgorithmParameterException,
             NoSuchPaddingException, IllegalBlockSizeException, BadPaddingException, InvalidKeyException {
 
@@ -104,18 +104,22 @@ public class PrivateKeyEncryptor {
         /* Generates a user-specified number of random bytes */
         secRandom.nextBytes(salt) ;
 
+        /* Generate Initialization Vector */
+        IvParameterSpec ivParameterSpec = generateIv();
+        byte[] iv = ivParameterSpec.getIV();
+
         SecretKey key = generateSecretKeyFromPassword(password, Arrays.toString(salt));
 
-        return new EncryptionData(encrypt(SYMMETRIC_KEY_ALGORITHM, plainText, key, ivParameterSpec), salt);
+        return new EncryptionData(encrypt(SYMMETRIC_KEY_ALGORITHM, plainText, key, ivParameterSpec), salt, iv);
     }
 
-    public static String getDecryptionUsingPassword(EncryptionData cipher, String password, IvParameterSpec ivParameterSpec)
+    public static String getDecryptionUsingPassword(EncryptionData cipher, String password)
             throws NoSuchAlgorithmException, InvalidKeySpecException, InvalidAlgorithmParameterException,
             NoSuchPaddingException, IllegalBlockSizeException, BadPaddingException, InvalidKeyException {
 
         SecretKey key = generateSecretKeyFromPassword(password, Arrays.toString(cipher.salt));
 
-        return decrypt(SYMMETRIC_KEY_ALGORITHM, cipher.cipherText, key, ivParameterSpec);
+        return decrypt(SYMMETRIC_KEY_ALGORITHM, cipher.cipherText, key, new IvParameterSpec(cipher.iv));
     }
 
     public static void main(String[] args) throws InvalidAlgorithmParameterException, NoSuchPaddingException, IllegalBlockSizeException, NoSuchAlgorithmException, InvalidKeySpecException, BadPaddingException, InvalidKeyException {
@@ -143,10 +147,10 @@ public class PrivateKeyEncryptor {
 //        System.out.println(cipherText);
 
 
-        IvParameterSpec ivParameterSpec = generateIv();
-        EncryptionData encryptionData = getEncryptionUsingPassword("Gokul Sreekumar is a good guy", "Password@123", ivParameterSpec);
+        EncryptionData encryptionData = getEncryptionUsingPassword("Jessiya is a good girl", "Password@123");
         System.out.println(encryptionData.cipherText);
-        String plaintText = getDecryptionUsingPassword(encryptionData, "Password@123", ivParameterSpec);
+
+        String plaintText = getDecryptionUsingPassword(encryptionData, "Password@123");
         System.out.println(plaintText);
     }
 }

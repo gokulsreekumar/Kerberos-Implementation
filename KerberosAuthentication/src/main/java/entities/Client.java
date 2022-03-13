@@ -104,9 +104,11 @@ public class Client {
                 generateNonce(32),
                 1);
 
+        PaData[] paData = new PaData[0];
         asRequest = ImmutableKrbKdcReq.builder()
                 .pvno(KERBEROS_VERSION_NUMBER)
                 .msgType(AS_REQUEST_MESSSAGE_TYPE)
+                .paData(paData)
                 .reqBody(krbKdcReqBody)
                 .build();
     }

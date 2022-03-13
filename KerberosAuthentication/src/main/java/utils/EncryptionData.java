@@ -3,10 +3,12 @@ package utils;
 public class EncryptionData {
     String cipherText;
     byte[] salt;
+    byte[] iv;
 
-    public EncryptionData(String cipherText, byte[] salt) {
+    public EncryptionData(String cipherText, byte[] salt, byte[] iv) {
         this.cipherText = cipherText;
         this.salt = salt;
+        this.iv = iv;
     }
 
     public String getCipherText() {
@@ -25,4 +27,11 @@ public class EncryptionData {
         this.salt = salt;
     }
 
+    public byte[] getIv() {
+        return iv;
+    }
+
+    public void setIv(byte[] iv) {
+        this.iv = iv;
+    }
 }
