@@ -6,6 +6,7 @@ import utils.EncryptionData;
 import utils.PrivateKeyEncryptor;
 
 import java.net.*;
+import java.nio.charset.StandardCharsets;
 import java.sql.Timestamp;
 import java.util.Random;
 import java.util.Scanner;
@@ -90,6 +91,13 @@ public class Client {
             /* Deserialization of json string to object */
             replyFromAs = objectMapper.readValue(dataString, KrbKdcRep.class);
             System.out.println(replyFromAs.toString());
+
+            EncryptionData encryptionData = new EncryptionData(
+                    new String(replyFromAs.encPart().getCipher(), StandardCharsets.UTF_8),
+                    replyFromAs.paData()[0].getPadataValue(),
+                    replyFromAs.paData()[1].getPadataValue());
+            String cipherText = PrivateKeyEncryptor.getDecryptionUsingPassword(encryptionData, loginPassword);
+            System.out.println(cipherText);
 
             // Closing the socket connection with the server
             clientSocket.close();

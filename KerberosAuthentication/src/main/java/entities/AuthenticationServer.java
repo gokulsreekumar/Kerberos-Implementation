@@ -20,6 +20,7 @@ import java.io.IOException;
 import java.net.DatagramPacket;
 import java.net.DatagramSocket;
 import java.net.InetAddress;
+import java.nio.charset.StandardCharsets;
 import java.security.InvalidAlgorithmParameterException;
 import java.security.InvalidKeyException;
 import java.security.NoSuchAlgorithmException;
@@ -153,7 +154,7 @@ public class AuthenticationServer {
                 new EncryptedData(
                         1,
                         KERBEROS_VERSION_NUMBER,
-                        encryptedEncTicketPart.getCipherText().getBytes()));
+                        encryptedEncTicketPart.getCipherText().getBytes(StandardCharsets.UTF_8)));
 
         replyForClient = ImmutableKrbKdcRep.builder()
                 .pvno(KERBEROS_VERSION_NUMBER)
@@ -164,7 +165,7 @@ public class AuthenticationServer {
                 .encPart(new EncryptedData(
                         1,
                         KERBEROS_VERSION_NUMBER,
-                        encryptedEncKdcRepPart.getCipherText().getBytes()))
+                        encryptedEncKdcRepPart.getCipherText().getBytes(StandardCharsets.UTF_8)))
                 .build();
     }
 

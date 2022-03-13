@@ -5,6 +5,7 @@ import javax.crypto.*;
 import javax.crypto.spec.IvParameterSpec;
 import javax.crypto.spec.PBEKeySpec;
 import javax.crypto.spec.SecretKeySpec;
+import java.nio.charset.StandardCharsets;
 import java.security.InvalidAlgorithmParameterException;
 import java.security.InvalidKeyException;
 import java.security.NoSuchAlgorithmException;
@@ -160,7 +161,10 @@ public class PrivateKeyEncryptor {
         EncryptionData encryptionData = getEncryptionUsingPassword("Jessiya is a good girl", "Password@123");
         System.out.println(encryptionData.cipherText);
 
-        String plaintText = getDecryptionUsingPassword(encryptionData, "Password@123");
+        byte[] bytesOfCipher = encryptionData.cipherText.getBytes(StandardCharsets.UTF_8);
+
+        EncryptionData encryptionData1 = new EncryptionData(new String(bytesOfCipher, StandardCharsets.UTF_8), encryptionData.salt, encryptionData.iv);
+        String plaintText = getDecryptionUsingPassword(encryptionData1, "Password@123");
         System.out.println(plaintText);
     }
 }
