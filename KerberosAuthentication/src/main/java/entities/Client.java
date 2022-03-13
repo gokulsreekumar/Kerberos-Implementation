@@ -34,14 +34,22 @@ public class Client {
         Scanner myObj = new Scanner(System.in);
 
         System.out.print("kerberos id: ");
-        String kerberosId = myObj.nextLine();
+        String clientKerberosId = myObj.nextLine();
         System.out.print("password: ");
         String password = myObj.nextLine();
 
-        Client client = new Client(new PrincipalName(kerberosId), password);
+        Client client = new Client(new PrincipalName(clientKerberosId), password);
 
         client.constructAuthenticationServerRequest();
         client.sendRequestToAsAndReceiveResponse();
+
+        /* TODO: check if user is successfully authenticated */
+
+        System.out.println("Authentication Successful!");
+
+        System.out.println("Please enter the kerberos id of the service you would like to access");
+        System.out.print("service kerberos id: ");
+        String applicationServerKerberosId = myObj.nextLine();
     }
 
     public void sendRequestToAsAndReceiveResponse() {
