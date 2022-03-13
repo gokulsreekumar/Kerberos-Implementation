@@ -23,7 +23,7 @@ public class Constants {
 //            .nameString("application_server")
 //            .build();
 
-    public static final PrincipalName as_server = new PrincipalName("as_server");
-    public static final PrincipalName tgs_server = new PrincipalName("tgs_server");
+    public static final PrincipalName AS_SERVER = new PrincipalName("as_server");
+    public static final PrincipalName TGS_SERVER = new PrincipalName("tgs_server");
 
 }
