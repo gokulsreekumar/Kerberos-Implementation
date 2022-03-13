@@ -1,10 +1,11 @@
 package messageformats;
 
 import java.io.Serializable;
-import java.security.Timestamp;
+import java.sql.Timestamp;
 import java.util.Optional;
 
-public class EncKdcRepPart {
+
+public class EncKdcRepPart implements Serializable {
     EncryptionKey key;
     PrincipalName sname;
     int nonce;

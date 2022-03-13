@@ -17,6 +17,9 @@ public class Constants {
     public static final PrincipalName AS_SERVER = new PrincipalName("as_server");
     public static final PrincipalName TGS_SERVER = new PrincipalName("tgs_server");
 
+    // TODO: replace this hardcoded password for TGS
+    public static final String TGS_PASSWORD = "TGS_PASSWORD";
+
     // PaData Types
     public static final int PA_PW_SALT = 3;
     public static final int PA_PW_IV = 25; // Made Up (fin where exactly to send later)

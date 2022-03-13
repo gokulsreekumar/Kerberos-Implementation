@@ -1,5 +1,7 @@
 package messageformats;
 
+import java.util.Arrays;
+
 public class EncryptedData {
     int etype;
     int kvno;
@@ -37,5 +39,14 @@ public class EncryptedData {
 
     public void setCipher(byte[] cipher) {
         this.cipher = cipher;
+    }
+
+    @Override
+    public String toString() {
+        return "EncryptedData{" +
+                "etype=" + etype +
+                ", kvno=" + kvno +
+                ", cipher=" + Arrays.toString(cipher) +
+                '}';
     }
 }

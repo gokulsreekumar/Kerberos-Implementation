@@ -23,10 +23,19 @@ public class PrivateKeyEncryptor {
     public static final String SYMMETRIC_KEY_ALGORITHM = "AES/CBC/PKCS5Padding";
 
     /*
+      The secret session key should be generated from a Cryptographically Secure (Pseudo-)Random Number Generator.
+    */
+    public static SecretKey generateSessionKey(int n) throws NoSuchAlgorithmException {
+        KeyGenerator keyGenerator = KeyGenerator.getInstance("AES");
+        keyGenerator.init(n);
+        SecretKey key = keyGenerator.generateKey();
+        return key;
+    }
+
+    /*
      AES secret key can be derived from a given password
      using a password-based key derivation function like PBKDF2
      */
-
     public static SecretKey generateSecretKeyFromPassword(String password, String salt)
             throws NoSuchAlgorithmException, InvalidKeySpecException {
 
@@ -57,6 +66,7 @@ public class PrivateKeyEncryptor {
         /* Creates an IvParameterSpec object using the bytes in iv as the IV */
         return new IvParameterSpec(iv);
     }
+
 
     public static String encrypt(String algorithm, String plainText, SecretKey key, IvParameterSpec iv)
             throws NoSuchPaddingException, NoSuchAlgorithmException, InvalidAlgorithmParameterException,

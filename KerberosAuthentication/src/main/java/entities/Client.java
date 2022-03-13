@@ -2,6 +2,8 @@ package entities;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import messageformats.*;
+import utils.EncryptionData;
+import utils.PrivateKeyEncryptor;
 
 import java.net.*;
 import java.sql.Timestamp;
@@ -76,7 +78,7 @@ public class Client {
             // sending UDP packet to the server
             clientSocket.send(sendingPacket);
 
-            byte[] receivingDataBuffer = new byte[1024];
+            byte[] receivingDataBuffer = new byte[5120];
 
             // Get the server response
             DatagramPacket receivingPacket = new DatagramPacket(receivingDataBuffer, receivingDataBuffer.length);
@@ -86,7 +88,6 @@ public class Client {
             String dataString = new String(dataReceived);
 
             /* Deserialization of json string to object */
-            objectMapper = new ObjectMapper();
             replyFromAs = objectMapper.readValue(dataString, KrbKdcRep.class);
             System.out.println(replyFromAs.toString());
 

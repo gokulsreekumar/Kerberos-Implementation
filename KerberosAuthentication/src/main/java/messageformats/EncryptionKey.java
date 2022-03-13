@@ -14,9 +14,9 @@ public class EncryptionKey implements Serializable {
     int keyType;
 
     /* Contains the key itself, encoded as an octet string. */
-    String keyValue;
+    byte[] keyValue;
 
-    public EncryptionKey(int keyType, String keyValue) {
+    public EncryptionKey(int keyType, byte[] keyValue) {
         this.keyType = keyType;
         this.keyValue = keyValue;
     }
@@ -29,11 +29,11 @@ public class EncryptionKey implements Serializable {
         this.keyType = keyType;
     }
 
-    public String getKeyValue() {
+    public byte[] getKeyValue() {
         return keyValue;
     }
 
-    public void setKeyValue(String keyValue) {
+    public void setKeyValue(byte[] keyValue) {
         this.keyValue = keyValue;
     }
 }

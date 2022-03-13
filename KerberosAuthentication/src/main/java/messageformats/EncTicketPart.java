@@ -1,6 +1,6 @@
 package messageformats;
 
-import java.security.Timestamp;
+import java.sql.Timestamp;
 import java.util.Optional;
 
 public class EncTicketPart {

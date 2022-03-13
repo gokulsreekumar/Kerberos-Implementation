@@ -48,4 +48,13 @@ public class Ticket implements Serializable {
     public void setEncPart(EncryptedData encPart) {
         this.encPart = encPart;
     }
+
+    @Override
+    public String toString() {
+        return "Ticket{" +
+                "tktVno=" + tktVno +
+                ", sname=" + sname +
+                ", encPart=" + encPart +
+                '}';
+    }
 }

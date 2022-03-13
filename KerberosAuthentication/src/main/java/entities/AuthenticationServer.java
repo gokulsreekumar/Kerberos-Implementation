@@ -1,19 +1,35 @@
 package entities;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.opencsv.CSVReader;
 import com.opencsv.exceptions.CsvValidationException;
 import messageformats.*;
+import utils.EncryptionData;
+import utils.Helpers;
+import utils.PrivateKeyEncryptor;
 import utils.UserAuthData;
 
+import javax.crypto.BadPaddingException;
+import javax.crypto.IllegalBlockSizeException;
+import javax.crypto.NoSuchPaddingException;
+import javax.crypto.SecretKey;
+import java.io.File;
 import java.io.FileReader;
 import java.io.IOException;
 import java.net.DatagramPacket;
 import java.net.DatagramSocket;
 import java.net.InetAddress;
+import java.security.InvalidAlgorithmParameterException;
+import java.security.InvalidKeyException;
+import java.security.NoSuchAlgorithmException;
+import java.security.spec.InvalidKeySpecException;
+import java.sql.Timestamp;
 import java.util.ArrayList;
 
 import static utils.Constants.*;
+import static utils.Helpers.addDays;
+import static utils.PrivateKeyEncryptor.getEncryptionUsingPassword;
 
 public class AuthenticationServer {
     /* The server port to which
@@ -39,7 +55,7 @@ public class AuthenticationServer {
             /*
              * Instantiate a UDP packet to store the client data using the buffer for receiving data
              */
-            byte[] receivingDataBuffer = new byte[1024];
+            byte[] receivingDataBuffer = new byte[5120];
 
             System.out.println("Waiting for client request...");
 
@@ -68,7 +84,6 @@ public class AuthenticationServer {
             constructReplyForClient(clientPassword);
 
             /* Serialization of reply object into json string */
-            objectMapper = new ObjectMapper();
             String json = objectMapper.writeValueAsString(replyForClient);
 
             /* Convert string to byte array */
@@ -87,39 +102,83 @@ public class AuthenticationServer {
         }
     }
 
-    public void constructReplyForClient(String clientPassword) {
-        // TODO: Do the real encryption and decryption
-        String sampleString = "Hello World";
-        byte[] sampleCipher = sampleString.getBytes();
+    public void constructReplyForClient(String clientPassword) throws NoSuchAlgorithmException, JsonProcessingException, InvalidAlgorithmParameterException, NoSuchPaddingException, IllegalBlockSizeException, InvalidKeySpecException, BadPaddingException, InvalidKeyException {
+        /*
+         Two Parts: EncKdcRepPart and Ticket
+            - EncKdcRepPart uses Client's Private Key
+            - Ticket uses TGS's Private Key for its Encrypted Part
+        */
 
-        EncryptedData sampleEncData = new EncryptedData(1, KERBEROS_VERSION_NUMBER, sampleCipher);
-        Ticket sampleTicketTGS = new Ticket(AS_SERVER, sampleEncData);
+        Timestamp authTime = new Timestamp(System.currentTimeMillis());
+        SecretKey secretKeyBetweenClientAndTgs = PrivateKeyEncryptor.generateSessionKey(256);
+        EncryptionKey sessionKeyBetweenClientAndTgs = new EncryptionKey(
+                1,
+                secretKeyBetweenClientAndTgs.getEncoded());
 
-        // Encrypted part and Ticket
-        // Encrypted part uses Client's Private Key
-        // Ticket uses TGS's Private Key for its Encrypted Part
+        EncKdcRepPart encKdcRepPart = new EncKdcRepPart(
+                sessionKeyBetweenClientAndTgs,
+                TGS_SERVER,
+                Helpers.generateNonce(16),
+                authTime,
+                addDays(authTime, 1)
+        );
 
-        PaData[] paData = new PaData[0];
+        EncTicketPart encTicketPart = new EncTicketPart(
+                sessionKeyBetweenClientAndTgs,
+                clientRequest.reqBody().getCname(),
+                authTime,
+                addDays(authTime, 1)
+        );
+
+        /* Serialization of encKdcRepPart into json string */
+        ObjectMapper objectMapper = new ObjectMapper();
+        String jsonEncKdcRepPart = objectMapper.writeValueAsString(encKdcRepPart);
+        EncryptionData encryptedEncKdcRepPart = PrivateKeyEncryptor.getEncryptionUsingPassword(
+                jsonEncKdcRepPart,
+                clientPassword);
+
+        /* Serialization of encTicketPart into json string */
+        String jsonEncTicketPart = objectMapper.writeValueAsString(encTicketPart);
+        EncryptionData encryptedEncTicketPart = PrivateKeyEncryptor.getEncryptionUsingPassword(
+                jsonEncTicketPart,
+                TGS_PASSWORD);
+
+        PaData[] paData = new PaData[2];
+        paData[0] = new PaData(PA_PW_SALT, encryptedEncKdcRepPart.getSalt());
+        paData[1] = new PaData(PA_PW_IV, encryptedEncKdcRepPart.getIv());
+
+        Ticket ticket = new Ticket(
+                TICKET_VERSION_NUMBER,
+                TGS_SERVER,
+                new EncryptedData(
+                        1,
+                        KERBEROS_VERSION_NUMBER,
+                        encryptedEncTicketPart.getCipherText().getBytes()));
+
         replyForClient = ImmutableKrbKdcRep.builder()
                 .pvno(KERBEROS_VERSION_NUMBER)
                 .msgType(AS_REPLY_MESSSAGE_TYPE)
                 .paData(paData)
                 .cname(clientRequest.reqBody().getCname())
-                .ticket(sampleTicketTGS)
-                .encPart(sampleEncData)
+                .ticket(ticket)
+                .encPart(new EncryptedData(
+                        1,
+                        KERBEROS_VERSION_NUMBER,
+                        encryptedEncKdcRepPart.getCipherText().getBytes()))
                 .build();
     }
 
     public void loadUserAuthData() throws IOException, CsvValidationException {
+        File file = new File("src/main/java/resources/ClientAuthenticationDatabase.csv");
         // Create a fileReader object
-        FileReader fileReader = new FileReader("/Users/gokul/Developer/Kerberos-Implementation/KerberosAuthentication/src/main/java/resources/ClientAuthenticationDatabase.csv");
+        FileReader fileReader = new FileReader(file.getPath());
 
         // Create a csvReader object by passing fileReader as parameter
         CSVReader csvReader = new CSVReader(fileReader);
-        String[] nextRecord;
 
         ArrayList<UserAuthData> allUserAuthData = new ArrayList<>();
         // Reading client record line by line
+        String[] nextRecord;
         while ((nextRecord = csvReader.readNext()) != null) {
             UserAuthData oneUserAuthData = new UserAuthData();
             for (int _i = 0; _i < 2; _i++) {
