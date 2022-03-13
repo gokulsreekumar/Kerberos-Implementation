@@ -20,10 +20,10 @@ public class Client {
     public static void main(String[] args) {
         Client client = new Client();
         client.constructAuthenticationServerRequest();
-        client.sendRequestToAs();
+        client.sendRequestToAsAndReceiveResponse();
     }
 
-    public void sendRequestToAs() {
+    public void sendRequestToAsAndReceiveResponse() {
         try {
             /*
              * Instantiate client socket.
