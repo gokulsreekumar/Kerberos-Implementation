@@ -1,4 +1,4 @@
-# Kerberos-Implementation
+# Implementation of Kerberos Authentication Protocol
 
 ### GOALS
 1) Understand the Protocol/Algorithm
