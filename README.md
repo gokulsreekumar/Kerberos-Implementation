@@ -19,7 +19,7 @@ The following figure shows the basic workflow of Kerberos Authentication Protoco
 - firstly, Authenication with KDC and receiving Tickets
 - secondly, availing the service by using the Tickets
 
-Message exchange between **three** entities:
+Messages are exchanged by Client with **three** other entities:
 1. Authentication Server(AS)
 2. Ticket Granting Server(TGS)
 3. Service Server (S)
