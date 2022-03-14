@@ -18,7 +18,7 @@ import java.util.Base64;
 public class PrivateKeyEncryptor {
     public static final int SECRET_KEY_LENGTH = 128;
     public static final int PLAINTEXT_LENGTH = 600;
-    public static final int KEY_LENGTH = 256;
+    public static final int KEY_LENGTH = 128;
     public static final int BLOCK_SIZE = 16;
     public static final int SALT_LENGTH = 128;
     public static final String SYMMETRIC_KEY_ALGORITHM = "AES/CBC/PKCS5Padding";
@@ -119,6 +119,10 @@ public class PrivateKeyEncryptor {
         IvParameterSpec ivParameterSpec = generateIv();
         byte[] iv = ivParameterSpec.getIV();
 
+//        System.out.println(password);
+//        System.out.println(Arrays.toString(iv));
+//        System.out.println(Arrays.toString(salt));
+
         SecretKey key = generateSecretKeyFromPassword(password, Arrays.toString(salt));
 
         return new EncryptionData(encrypt(SYMMETRIC_KEY_ALGORITHM, plainText, key, ivParameterSpec), salt, iv);
@@ -129,6 +133,10 @@ public class PrivateKeyEncryptor {
             NoSuchPaddingException, IllegalBlockSizeException, BadPaddingException, InvalidKeyException {
 
         SecretKey key = generateSecretKeyFromPassword(password, Arrays.toString(cipher.salt));
+
+//        System.out.println(password);
+//        System.out.println(Arrays.toString(cipher.iv));
+//        System.out.println(Arrays.toString(cipher.salt));
 
         return decrypt(SYMMETRIC_KEY_ALGORITHM, cipher.cipherText, key, new IvParameterSpec(cipher.iv));
     }

@@ -34,6 +34,9 @@ public class EncKdcRepPart implements Serializable {
         this.endTime = endTime;
     }
 
+    public EncKdcRepPart() {
+    }
+
     public EncryptionKey getKey() {
         return key;
     }

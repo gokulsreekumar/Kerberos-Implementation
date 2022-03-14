@@ -21,6 +21,9 @@ public class EncryptionKey implements Serializable {
         this.keyValue = keyValue;
     }
 
+    public EncryptionKey() {
+    }
+
     public int getKeyType() {
         return keyType;
     }

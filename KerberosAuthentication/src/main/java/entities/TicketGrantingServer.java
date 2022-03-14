@@ -2,8 +2,6 @@ package entities;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.opencsv.CSVReader;
-import com.opencsv.exceptions.CsvValidationException;
 import messageformats.*;
 import utils.EncryptionData;
 import utils.Helpers;
@@ -14,9 +12,6 @@ import javax.crypto.BadPaddingException;
 import javax.crypto.IllegalBlockSizeException;
 import javax.crypto.NoSuchPaddingException;
 import javax.crypto.SecretKey;
-import java.io.File;
-import java.io.FileReader;
-import java.io.IOException;
 import java.net.DatagramPacket;
 import java.net.DatagramSocket;
 import java.net.InetAddress;
@@ -29,21 +24,22 @@ import java.sql.Timestamp;
 import java.util.ArrayList;
 
 import static utils.Constants.*;
+import static utils.Constants.KERBEROS_VERSION_NUMBER;
 import static utils.Helpers.addDays;
 
-public class AuthenticationServer {
+public class TicketGrantingServer {
     /* The server port to which
     the client socket is going to connect */
-    public final static int SERVICE_PORT = 50001;
+    public final static int SERVICE_PORT = 50002;
     private static ArrayList<UserAuthData> userAuthDatabase;
     private KrbKdcReq clientRequest;
     private KrbKdcRep replyForClient;
 
 
     public static void main(String[] args) {
-        AuthenticationServer authenticationServer = new AuthenticationServer();
+        TicketGrantingServer ticketGrantingServer = new TicketGrantingServer();
         while (true) {
-            authenticationServer.receiveClientRequestAndReply();
+            ticketGrantingServer.receiveClientRequestAndReply();
         }
     }
 
@@ -77,7 +73,7 @@ public class AuthenticationServer {
             int senderPort = inputPacket.getPort();
 
             // TODO: Add logic for verification of client's identity and other AS functions
-            loadUserAuthData();
+//            loadUserAuthData();
 
 //            String clientPassword = getClientCredentials(clientRequest.reqBody().getCname().getNameString());
 
@@ -169,39 +165,4 @@ public class AuthenticationServer {
         System.out.println("ciphertext"+encryptedEncKdcRepPart.getCipherText());
     }
 
-    public void loadUserAuthData() throws IOException, CsvValidationException {
-        File file = new File("src/main/java/resources/ClientAuthenticationDatabase.csv");
-        // Create a fileReader object
-        FileReader fileReader = new FileReader(file.getPath());
-
-        // Create a csvReader object by passing fileReader as parameter
-        CSVReader csvReader = new CSVReader(fileReader);
-
-        ArrayList<UserAuthData> allUserAuthData = new ArrayList<>();
-        // Reading client record line by line
-        String[] nextRecord;
-        while ((nextRecord = csvReader.readNext()) != null) {
-            UserAuthData oneUserAuthData = new UserAuthData();
-            for (int _i = 0; _i < 2; _i++) {
-                System.out.print(nextRecord[_i] + "\t");
-                if (_i == 0) {
-                    oneUserAuthData.setUserid(nextRecord[_i]);
-                } else if (_i == 1) {
-                    oneUserAuthData.setPassword(nextRecord[_i]);
-                }
-            }
-            allUserAuthData.add(oneUserAuthData);
-            System.out.println();
-        }
-        userAuthDatabase = allUserAuthData;
-    }
-
-    public String getClientCredentials(String clientUserid) {
-        for (UserAuthData user : userAuthDatabase) {
-            if (user.getUserid() == clientUserid) {
-                return user.getPassword();
-            }
-        }
-        return "USER_NOT_FOUND";
-    }
 }
