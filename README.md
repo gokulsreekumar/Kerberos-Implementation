@@ -1,6 +1,7 @@
 # Implementation of Kerberos Authentication Protocol
 
-### GOALS
+### Goals
+
 1) Understand the Protocol/Algorithm
 2) Under security of the Protocol/Algorithm
 3) Under the message formats used in the Protocol/Algorithm
