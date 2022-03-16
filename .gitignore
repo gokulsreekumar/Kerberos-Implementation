@@ -1,6 +1,13 @@
 Kerberos/src/.DS_Store
 Kerberos/out/
 
-KerberosAuthentication/target/
-ClientServerJavaCode/UDP-ClientServer-Communication/out/
-ClientServerJavaCode/UDP-ClientServer-Communication/.DS_Store
+KDC/target/
+Client/target/
+ApplicationServer/target/
+
+
+
+#ClientServerJavaCode/UDP-ClientServer-Communication/out/
+#ClientServerJavaCode/UDP-ClientServer-Communication/.DS_Store
+
+
