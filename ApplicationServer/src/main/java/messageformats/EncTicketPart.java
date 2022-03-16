@@ -27,9 +27,6 @@ public class EncTicketPart {
         this.endTime = endTime;
     }
 
-    public EncTicketPart() {
-    }
-
     public EncryptionKey getKey() {
         return key;
     }

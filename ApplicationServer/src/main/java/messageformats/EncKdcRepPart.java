@@ -1,33 +1,40 @@
 package messageformats;
 
+import java.io.Serializable;
 import java.sql.Timestamp;
 import java.util.Optional;
 
-public class EncTicketPart {
+
+public class EncKdcRepPart implements Serializable {
     EncryptionKey key;
-    PrincipalName cname;
+    PrincipalName sname;
+    int nonce;
+    Optional<Timestamp> keyExpiration;
     Timestamp authTime;
     Optional<Timestamp> startTime;
     Timestamp endTime;
     Optional<Timestamp> renewTill;
 
-    public EncTicketPart(EncryptionKey key, PrincipalName cname, Timestamp authTime, Optional<Timestamp> startTime, Timestamp endTime, Optional<Timestamp> renewTill) {
+    public EncKdcRepPart(EncryptionKey key, PrincipalName sname, int nonce, Optional<Timestamp> keyExpiration, Timestamp authTime, Optional<Timestamp> startTime, Timestamp endTime, Optional<Timestamp> renewTill) {
         this.key = key;
-        this.cname = cname;
+        this.sname = sname;
+        this.nonce = nonce;
+        this.keyExpiration = keyExpiration;
         this.authTime = authTime;
         this.startTime = startTime;
         this.endTime = endTime;
         this.renewTill = renewTill;
     }
 
-    public EncTicketPart(EncryptionKey key, PrincipalName cname, Timestamp authTime, Timestamp endTime) {
+    public EncKdcRepPart(EncryptionKey key, PrincipalName sname, int nonce, Timestamp authTime, Timestamp endTime) {
         this.key = key;
-        this.cname = cname;
+        this.sname = sname;
+        this.nonce = nonce;
         this.authTime = authTime;
         this.endTime = endTime;
     }
 
-    public EncTicketPart() {
+    public EncKdcRepPart() {
     }
 
     public EncryptionKey getKey() {
@@ -38,12 +45,28 @@ public class EncTicketPart {
         this.key = key;
     }
 
-    public PrincipalName getCname() {
-        return cname;
+    public PrincipalName getSname() {
+        return sname;
     }
 
-    public void setCname(PrincipalName cname) {
-        this.cname = cname;
+    public void setSname(PrincipalName sname) {
+        this.sname = sname;
+    }
+
+    public int getNonce() {
+        return nonce;
+    }
+
+    public void setNonce(int nonce) {
+        this.nonce = nonce;
+    }
+
+    public Optional<Timestamp> getKeyExpiration() {
+        return keyExpiration;
+    }
+
+    public void setKeyExpiration(Optional<Timestamp> keyExpiration) {
+        this.keyExpiration = keyExpiration;
     }
 
     public Timestamp getAuthTime() {

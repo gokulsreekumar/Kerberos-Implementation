@@ -115,7 +115,7 @@ public class KeyDistributionCentre {
 
                 case TGS_REQUEST_MESSSAGE_TYPE:
                     clientTgsRequest = clientRequest;
-                    doTgsVerification();
+                    doClientAuthenticationFromTgsRequest();
                     constructTgsReplyForClient();
                     /* Serialization of reply object into json string */
                     replyForClientJsonString = objectMapper.writeValueAsString(tgsReplyForClient);
@@ -152,7 +152,7 @@ public class KeyDistributionCentre {
         EncryptionKey sessionKeyBetweenClientAndTgs = new EncryptionKey(
                 1,
                 sessionKeyForTgs
-                );
+        );
 
         EncKdcRepPart encKdcRepPart = new EncKdcRepPart(
                 sessionKeyBetweenClientAndTgs,
@@ -245,7 +245,7 @@ public class KeyDistributionCentre {
         return "USER_NOT_FOUND";
     }
 
-    private void doTgsVerification() {
+    private void doClientAuthenticationFromTgsRequest() {
         try {
             KrbApReq apReqInTgsRequest = null;
 
@@ -261,6 +261,9 @@ public class KeyDistributionCentre {
 
             System.out.println("appp"+apReqInTgsRequest.toString());
 
+            /*
+                Decrypt TGT from AP_REQ to retrieve session key
+            */
             Ticket tgt = apReqInTgsRequest.ticket();
             EncryptedData encryptedDataForTicket = tgt.getEncPart();
             String cipherTextForTicket = new String(encryptedDataForTicket.getCipher(), StandardCharsets.UTF_8);
@@ -271,6 +274,9 @@ public class KeyDistributionCentre {
             );
             String plainTextForTicket = PrivateKeyEncryptor.getDecryptionUsingSecretKey(
                     encryptionDataForTicket, tgsSecretKey);
+            EncTicketPart unencryptedTicketFromTgsReq = objectMapper.readValue(
+                    plainTextForTicket, EncTicketPart.class);
+            sessionKeyForTgs = unencryptedTicketFromTgsReq.getKey().getKeyValue();
 
             EncryptedData encryptedDataForAuthenticator = apReqInTgsRequest.authenticator();
             String cipherTextForAuthenticator = new String(
@@ -281,14 +287,13 @@ public class KeyDistributionCentre {
                     encryptedDataForAuthenticator.getIv());
             String plainTextForAuthenticator = PrivateKeyEncryptor.getDecryptionUsingSecretKey(
                     encryptionDataForAuthenticator, sessionKeyForTgs);
-
             UnencryptedAuthenticator unencryptedAuthenticatorFromTgsReq = objectMapper.readValue(
                     plainTextForAuthenticator, UnencryptedAuthenticator.class);
 
             /*
             CHECKS ON AUTHENTICATOR:
             1. Is Timestamp recent? (if issued maximum 10 minutes before)
-            2. Is client name in authenticator and tgs req body same?
+            2. Is client name in authenticator and ticket same?
              */
             Timestamp timeStampAsSessionKeyProof = unencryptedAuthenticatorFromTgsReq.getcTime();
             Timestamp currentTimeStamp = new Timestamp(System.currentTimeMillis());
@@ -296,7 +301,7 @@ public class KeyDistributionCentre {
                 throw new IncorrectAuthenticatorException("Timestamp in client authenticator is not recent");
             }
             String cNameInAuthenticator = unencryptedAuthenticatorFromTgsReq.getCname().getNameString();
-            if (!clientTgsRequest.reqBody().getCname().getNameString().equals(cNameInAuthenticator)) {
+            if (! unencryptedTicketFromTgsReq.getCname().equals(cNameInAuthenticator)) {
                 throw new IncorrectAuthenticatorException("Client name is incorrect");
             }
 
@@ -307,20 +312,23 @@ public class KeyDistributionCentre {
 
     public void constructTgsReplyForClient() throws NoSuchAlgorithmException, JsonProcessingException, InvalidAlgorithmParameterException, NoSuchPaddingException, IllegalBlockSizeException, InvalidKeySpecException, BadPaddingException, InvalidKeyException {
         /*
-         Two Parts: EncKdcRepPart and Ticket
-            - EncKdcRepPart uses Client-TGS Session Key
-            - Ticket uses AP's Private Key for its Encrypted Part
+         Mainly two Parts in Tgs Reply: ticket and encPart
+            - ticket: Service Granting Ticket(SGT) for client to present to Ap Server
+                (uses AP's Private Key for its Encrypted Part)
+            - encPart:
         */
 
         PrincipalName applicationServerPrincipalName = clientTgsRequest.reqBody().getSname();
 
         Timestamp authTime = new Timestamp(System.currentTimeMillis());
 
+        /* Generating Session Key for Client - AP Server Communication */
         SecretKey secretKeyBetweenClientAndApServer = PrivateKeyEncryptor.generateSessionKey(256);
         EncryptionKey sessionKeyBetweenClientAndApServer = new EncryptionKey(
                 1,
                 secretKeyBetweenClientAndApServer.getEncoded());
 
+        /* Creating EncKdcRepPart object */
         EncKdcRepPart encKdcRepPart = new EncKdcRepPart(
                 sessionKeyBetweenClientAndApServer,
                 applicationServerPrincipalName,
@@ -328,14 +336,6 @@ public class KeyDistributionCentre {
                 authTime,
                 addDays(authTime, 1)
         );
-
-        EncTicketPart encTicketPart = new EncTicketPart(
-                sessionKeyBetweenClientAndApServer,
-                clientTgsRequest.reqBody().getCname(),
-                authTime,
-                addDays(authTime, 1)
-        );
-
         /* Serialization of encKdcRepPart into json string */
         ObjectMapper objectMapper = new ObjectMapper();
         String jsonEncKdcRepPart = objectMapper.writeValueAsString(encKdcRepPart);
@@ -343,12 +343,20 @@ public class KeyDistributionCentre {
                 jsonEncKdcRepPart,
                 sessionKeyForTgs);
 
+
+        /* Creating EncTicketPart object */
+        EncTicketPart encTicketPart = new EncTicketPart(
+                sessionKeyBetweenClientAndApServer,
+                clientTgsRequest.reqBody().getCname(),
+                authTime,
+                addDays(authTime, 1)
+        );
         /* Serialization of encTicketPart into json string */
         String jsonEncTicketPart = objectMapper.writeValueAsString(encTicketPart);
         EncryptionData encryptionDataForTicket = PrivateKeyEncryptor.getEncryptionUsingSecretKey(
                 jsonEncTicketPart,
                 apSecretKey);
-
+        /* Creating Ticket object */
         Ticket ticket = new Ticket(
                 TICKET_VERSION_NUMBER,
                 applicationServerPrincipalName,
@@ -359,6 +367,7 @@ public class KeyDistributionCentre {
 
         PaData[] paData = new PaData[0];
 
+        /* Creating KrbKdcRep object */
         tgsReplyForClient = ImmutableKrbKdcRep.builder()
                 .pvno(KERBEROS_VERSION_NUMBER)
                 .msgType(AS_REPLY_MESSSAGE_TYPE)
@@ -368,7 +377,7 @@ public class KeyDistributionCentre {
                 .encPart(new EncryptedData(
                         1,
                         KERBEROS_VERSION_NUMBER,
-                        encryptionDataForTicket.getIv(),
+                        encryptionDataForEncKdcRep.getIv(),
                         encryptionDataForEncKdcRep.getCipherText().getBytes(StandardCharsets.UTF_8)))
                 .build();
 

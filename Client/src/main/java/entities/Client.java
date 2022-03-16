@@ -25,6 +25,7 @@ public class Client {
     /* The server port to which
     the client socket is going to connect */
     public final static int KDC_SERVICE_PORT = 50001;
+    public final static int AP_SERVICE_PORT = 50002;
     public static final PrincipalName client = new PrincipalName("client" + new Random().nextInt(100));
     private PrincipalName clientKerberosId;
     private String applicationServerKerberosId;
@@ -48,24 +49,11 @@ public class Client {
         this.loginPassword = loginPassword;
     }
 
-    private void constructAuthenticationServerRequest() {
-        nonceROne = generateNonce(32);
-        KrbKdcReqBody krbKdcReqBody = new KrbKdcReqBody(clientKerberosId,
-                TGS_SERVER,
-                addDays(new Timestamp(System.currentTimeMillis()), 1),
-                nonceROne,
-                1);
-
-        PaData[] paData = new PaData[0];
-        requestToAs = ImmutableKrbKdcReq.builder()
-                .pvno(KERBEROS_VERSION_NUMBER)
-                .msgType(AS_REQUEST_MESSSAGE_TYPE)
-                .paData(paData)
-                .reqBody(krbKdcReqBody)
-                .build();
-    }
-
-    private void sendRequestToKdcAndReceiveResponse(int serverPort, ServerType serverType) {
+    /*
+    This is used for request/response exchange with a server.
+    Server can either be KDC or Application Server
+    */
+    private void sendRequestToServerAndReceiveResponse(int serverPort, ServerType serverType) {
         try {
             /*
              * Instantiate client socket.
@@ -131,6 +119,23 @@ public class Client {
         }
     }
 
+    private void constructAuthenticationServerRequest() {
+        nonceROne = generateNonce(32);
+        KrbKdcReqBody krbKdcReqBody = new KrbKdcReqBody(clientKerberosId,
+                TGS_SERVER,
+                addDays(new Timestamp(System.currentTimeMillis()), 1),
+                nonceROne,
+                1);
+
+        PaData[] paData = new PaData[0];
+        requestToAs = ImmutableKrbKdcReq.builder()
+                .pvno(KERBEROS_VERSION_NUMBER)
+                .msgType(AS_REQUEST_MESSSAGE_TYPE)
+                .paData(paData)
+                .reqBody(krbKdcReqBody)
+                .build();
+    }
+
     private void handleAsReply() {
 
         try {
@@ -169,29 +174,45 @@ public class Client {
     private void constructTicketGrantingServerRequest(String applicationServerKerberosId){
         try {
 
+            /*
+            There are mainly two parts in TGS request:
+                - paData:
+                    paData[0] = serialized KrbApReq object
+                    - KrbApReq object consists of
+                        - ticket (TGT) (encrypted using secret key of TGS)
+                        - authenticator (encrypted using Session Key)
+                - reqBody
+                    contains nonce, cname, sname etc
+            */
+
+            /* Retrieve TGT from AS reply */
             ticketGrantingTicket = replyFromAs.ticket();
 
             PrincipalName applicationServerPrincipalName = new PrincipalName(applicationServerKerberosId);
-
             Timestamp currentTime = new Timestamp(System.currentTimeMillis());
 
+            /* Create Authenticator object */
             UnencryptedAuthenticator authenticatorForTgsReq = new UnencryptedAuthenticator(
                     AUTHENTICATOR_VERSION_NUMBER,
                     clientKerberosId,
                     currentTime
             );
 
+            /* Serialize Authenticator object into JSON string */
             ObjectMapper objectMapper = new ObjectMapper();
             String jsonForUnencryptedAuthenticator = objectMapper.writeValueAsString(authenticatorForTgsReq);
 
+            /* Encrypt Authenticator JSON string using session key with TGS */
             EncryptionData encryptionDataForAuthenticator = PrivateKeyEncryptor.getEncryptionUsingSecretKey(
                     jsonForUnencryptedAuthenticator, sessionKeyWithTgs);
 
+            /* Create the EncryptedData object for Authenticator to attach in KrbApReq object */
             EncryptedData encryptedDataForAuthenticator = new EncryptedData(
                     1, 1,
                     encryptionDataForAuthenticator.getIv(),
                     encryptionDataForAuthenticator.getCipherText().getBytes(StandardCharsets.UTF_8));
 
+            /* Create KrbApReq object */
             KrbApReq apReqForTgsPaData = ImmutableKrbApReq.builder()
                     .pvno(KERBEROS_VERSION_NUMBER)
                     .msgType(AP_REQUEST_MESSAGE_TYPE)
@@ -199,12 +220,16 @@ public class Client {
                     .authenticator(encryptedDataForAuthenticator)
                     .build();
 
+            /* Serialize the KrbApReq object and assign it as first element of paData array */
             PaData[] paData = new PaData[1];
             // TODO: Can DER Encoding be used?
             paData[0] = new PaData(PA_TGS_REQ ,
                     objectMapper.writeValueAsString(apReqForTgsPaData).getBytes(StandardCharsets.UTF_8));
 
+            /* Generate a nonce R2 to sent to TGS */
             nonceRTwo = generateNonce(32);
+
+            /* Create TGS request body */
             KrbKdcReqBody krbKdcReqBody = new KrbKdcReqBody(
                     clientKerberosId,
                     applicationServerPrincipalName,
@@ -212,6 +237,7 @@ public class Client {
                     nonceRTwo,
                     1);
 
+            /* Create TGS request object */
             requestToTgs = ImmutableKrbKdcReq.builder()
                     .pvno(KERBEROS_VERSION_NUMBER)
                     .msgType(TGS_REQUEST_MESSSAGE_TYPE)
@@ -232,7 +258,7 @@ public class Client {
                     null,
                     replyFromAs.encPart().getIv());
             System.out.println("ciphertext"+new String(replyFromAs.encPart().getCipher(), StandardCharsets.UTF_8));
-            String plainText = PrivateKeyEncryptor.getDecryptionUsingPassword(encryptionData, loginPassword);
+            String plainText = PrivateKeyEncryptor.getDecryptionUsingSecretKey(encryptionData, sessionKeyWithTgs);
             System.out.println(plainText);
 
             /* Create EncKdcRepPart object from the json string obtained after decryption  */
@@ -296,9 +322,6 @@ public class Client {
         }
     }
 
-    private void sendRequestToApAndReceiveResponse() {
-    }
-
     public static void main(String[] args) {
         System.out.println("WELCOME TO KERBEROS AUTHENTICATION SYSTEM!");
         System.out.println("Please enter your kerberos id and password to get started");
@@ -313,8 +336,7 @@ public class Client {
 
         /* AS Exchange */
         client.constructAuthenticationServerRequest();
-        client.sendRequestToKdcAndReceiveResponse(KDC_SERVICE_PORT, ServerType.AS);
-
+        client.sendRequestToServerAndReceiveResponse(KDC_SERVICE_PORT, ServerType.AS);
         /* TODO: check if user is successfully authenticated */
         client.handleAsReply();
 
@@ -326,13 +348,13 @@ public class Client {
 
         /* TGS Exchange */
         client.constructTicketGrantingServerRequest(client.applicationServerKerberosId);
-        client.sendRequestToKdcAndReceiveResponse(KDC_SERVICE_PORT, ServerType.TGS);
-
+        client.sendRequestToServerAndReceiveResponse(KDC_SERVICE_PORT, ServerType.TGS);
         client.handleTgsReply();
 
         /* AP Exchange */
         client.constructApplicationServerRequest();
-        client.sendRequestToApAndReceiveResponse();
+        client.sendRequestToServerAndReceiveResponse(AP_SERVICE_PORT, ServerType.AP);
+//        client.handleApReply();
 
     }
 }
