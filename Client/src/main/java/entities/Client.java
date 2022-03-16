@@ -16,7 +16,6 @@ import java.sql.Timestamp;
 import java.util.Random;
 import java.util.Scanner;
 
-import static entities.KeyDistributionCentre.KDC_SERVICE_PORT;
 import static java.lang.System.exit;
 import static utils.Constants.*;
 import static utils.Helpers.addDays;
@@ -25,9 +24,10 @@ import static utils.Helpers.generateNonce;
 public class Client {
     /* The server port to which
     the client socket is going to connect */
+    public final static int KDC_SERVICE_PORT = 50001;
     public static final PrincipalName client = new PrincipalName("client" + new Random().nextInt(100));
     private PrincipalName clientKerberosId;
-    private PrincipalName applicationServerKerberosId;
+    private String applicationServerKerberosId;
     private String loginPassword;
     private ImmutableKrbKdcReq requestToAs;
     private ImmutableKrbKdcRep replyFromAs;
@@ -38,7 +38,7 @@ public class Client {
     private Ticket ticketGrantingTicket;
     private Ticket serviceGrantingTicket;
     private byte[] sessionKeyWithTgs;
-    private byte[] SessionKeyWithServiceServer;
+    private byte[] sessionKeyWithServiceServer;
     private int nonceROne;
     private int nonceRTwo;
 //    private PaData derEncodingOfApReqForTgsRequest;
@@ -131,27 +131,29 @@ public class Client {
         }
     }
 
-    private void decryptAsReply() {
+    private void handleAsReply() {
 
         try {
+            /* Decrypt encrypted part of the AS reply */
             EncryptionData encryptionData = new EncryptionData(
                     new String(replyFromAs.encPart().getCipher(), StandardCharsets.UTF_8),
                     replyFromAs.paData()[0].getPadataValue(),
                     replyFromAs.paData()[1].getPadataValue());
             System.out.println("ciphertext"+new String(replyFromAs.encPart().getCipher(), StandardCharsets.UTF_8));
-
-            String plainText = null;
-            plainText = PrivateKeyEncryptor.getDecryptionUsingPassword(encryptionData, loginPassword);
-
+            String plainText = PrivateKeyEncryptor.getDecryptionUsingPassword(encryptionData, loginPassword);
             System.out.println(plainText);
 
+            /* Create EncKdcRepPart object from the json string obtained after decryption  */
             ObjectMapper objectMapper = new ObjectMapper();
             EncKdcRepPart encKdcRepPartInAsReply = objectMapper.readValue(plainText, EncKdcRepPart.class);
 
+            /* Retrieve SessionKey With TGS Server from EncKdcRepPart object */
             sessionKeyWithTgs = encKdcRepPartInAsReply.getKey().getKeyValue();
 
+            /* Retrieve Nonce sent to AS from EncKdcRepPart object */
             int nonceROneReceivedInReply = encKdcRepPartInAsReply.getNonce();
 
+            /* If nonces sent and received don't match, exit) */
             if (nonceROneReceivedInReply != nonceROne) {
                 throw new NonceDisMatchException("Nonce sent to AS and received from AS don't match! \n " +
                         "This usually happens when an imposter is trying to impersonate AS.");
@@ -222,7 +224,79 @@ public class Client {
         }
     }
 
+    private void handleTgsReply() {
+        try {
+            /* Decrypt encrypted part of the TGS reply */
+            EncryptionData encryptionData = new EncryptionData(
+                    new String(replyFromAs.encPart().getCipher(), StandardCharsets.UTF_8),
+                    null,
+                    replyFromAs.encPart().getIv());
+            System.out.println("ciphertext"+new String(replyFromAs.encPart().getCipher(), StandardCharsets.UTF_8));
+            String plainText = PrivateKeyEncryptor.getDecryptionUsingPassword(encryptionData, loginPassword);
+            System.out.println(plainText);
+
+            /* Create EncKdcRepPart object from the json string obtained after decryption  */
+            ObjectMapper objectMapper = new ObjectMapper();
+            EncKdcRepPart encKdcRepPartInTgsReply = objectMapper.readValue(plainText, EncKdcRepPart.class);
+
+            /* Retrieve SessionKey With ServiceServer from EncKdcRepPart object */
+            sessionKeyWithServiceServer = encKdcRepPartInTgsReply.getKey().getKeyValue();
+
+            /* Retrieve Nonce sent to TGS from EncKdcRepPart object */
+            int nonceRTwoReceivedInReply = encKdcRepPartInTgsReply.getNonce();
+
+            /* If nonces sent and received don't match, exit) */
+            if (nonceRTwoReceivedInReply != nonceRTwo) {
+                throw new NonceDisMatchException("Nonce sent to TGS and received from TGS don't match! \n " +
+                        "This usually happens when an imposter is trying to impersonate TGS.");
+            }
+
+        } catch (NonceDisMatchException e) {
+            exit(1);
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
     private void constructApplicationServerRequest() {
+        try {
+
+            serviceGrantingTicket = replyFromAs.ticket();
+
+            PrincipalName applicationServerPrincipalName = new PrincipalName(applicationServerKerberosId);
+
+            Timestamp currentTime = new Timestamp(System.currentTimeMillis());
+
+            UnencryptedAuthenticator authenticatorForApReq = new UnencryptedAuthenticator(
+                    AUTHENTICATOR_VERSION_NUMBER,
+                    clientKerberosId,
+                    currentTime
+            );
+
+            ObjectMapper objectMapper = new ObjectMapper();
+            String jsonForUnencryptedAuthenticator = objectMapper.writeValueAsString(authenticatorForApReq);
+
+            EncryptionData encryptionDataForAuthenticator = PrivateKeyEncryptor.getEncryptionUsingSecretKey(
+                    jsonForUnencryptedAuthenticator, sessionKeyWithServiceServer);
+
+            EncryptedData encryptedDataForAuthenticator = new EncryptedData(
+                    1, 1,
+                    encryptionDataForAuthenticator.getIv(),
+                    encryptionDataForAuthenticator.getCipherText().getBytes(StandardCharsets.UTF_8));
+
+            requestToAp = ImmutableKrbApReq.builder()
+                    .pvno(KERBEROS_VERSION_NUMBER)
+                    .msgType(AP_REQUEST_MESSAGE_TYPE)
+                    .ticket(serviceGrantingTicket)
+                    .authenticator(encryptedDataForAuthenticator)
+                    .build();
+
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
+    private void sendRequestToApAndReceiveResponse() {
     }
 
     public static void main(String[] args) {
@@ -242,22 +316,23 @@ public class Client {
         client.sendRequestToKdcAndReceiveResponse(KDC_SERVICE_PORT, ServerType.AS);
 
         /* TODO: check if user is successfully authenticated */
-        try {
-            client.decryptAsReply();
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
+        client.handleAsReply();
 
         System.out.println("Authentication Successful!");
 
         System.out.println("Please enter the kerberos id of the service you would like to access");
         System.out.print("service kerberos id: ");
-        String applicationServerKerberosId = myObj.nextLine();
-
-        PrincipalName sName = new PrincipalName(applicationServerKerberosId);
+        client.applicationServerKerberosId = myObj.nextLine();
 
         /* TGS Exchange */
-        client.constructTicketGrantingServerRequest(applicationServerKerberosId);
+        client.constructTicketGrantingServerRequest(client.applicationServerKerberosId);
         client.sendRequestToKdcAndReceiveResponse(KDC_SERVICE_PORT, ServerType.TGS);
+
+        client.handleTgsReply();
+
+        /* AP Exchange */
+        client.constructApplicationServerRequest();
+        client.sendRequestToApAndReceiveResponse();
+
     }
 }
