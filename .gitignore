@@ -6,6 +6,9 @@ Client/target/
 ApplicationServer/target/
 
 
+KDC/.idea/
+Client/.idea/
+ApplicationServer/.idea/
 
 #ClientServerJavaCode/UDP-ClientServer-Communication/out/
 #ClientServerJavaCode/UDP-ClientServer-Communication/.DS_Store
