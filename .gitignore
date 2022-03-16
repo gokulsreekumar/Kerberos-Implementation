@@ -1,14 +1,14 @@
-Kerberos/src/.DS_Store
-Kerberos/out/
+.DS_Store
 
 KDC/target/
 Client/target/
 ApplicationServer/target/
 
-
+.idea
 KDC/.idea/
 Client/.idea/
 ApplicationServer/.idea/
+Archive/ClientServerJavaCode/UDP-ClientServer-Communication/.idea
 
 #ClientServerJavaCode/UDP-ClientServer-Communication/out/
 #ClientServerJavaCode/UDP-ClientServer-Communication/.DS_Store
