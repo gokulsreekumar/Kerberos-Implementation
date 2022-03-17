@@ -10,5 +10,8 @@
         <module name="Client" />
       </profile>
     </annotationProcessing>
+    <bytecodeTargetLevel>
+      <module name="KDC" target="17" />
+    </bytecodeTargetLevel>
   </component>
 </project>

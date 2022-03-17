@@ -10,8 +10,8 @@ import org.immutables.value.Value;
 @JsonDeserialize(as = ImmutableKrbApReq.class)
 public interface KrbApReq {
     int pvno();
-    /* KRB_AP_REQ has type as 14 */
     int msgType();
     Ticket ticket();
     EncryptedData authenticator();
+    // TODO: Keep ApOptions and check if to send APRep or not.
 }

@@ -9,5 +9,7 @@ import org.immutables.value.Value;
 @JsonSerialize(as = ImmutableKrbApRep.class)
 @JsonDeserialize(as = ImmutableKrbApRep.class)
 public interface KrbApRep {
-
+    int pvno();
+    int msgType();
+    EncryptedData encPart();
 }

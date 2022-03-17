@@ -2,8 +2,6 @@ package messageformats;
 
 import java.io.Serializable;
 
-import static utils.Constants.*;
-
 public class Ticket implements Serializable {
     int tktVno;
     PrincipalName sname;
