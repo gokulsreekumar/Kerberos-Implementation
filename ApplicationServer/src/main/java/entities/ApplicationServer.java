@@ -1,19 +1,29 @@
 package entities;
 
 import Exceptions.IncorrectAuthenticatorException;
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import messageformats.*;
 import utils.EncryptionData;
 import utils.PrivateKeyEncryptor;
 
+import javax.crypto.BadPaddingException;
+import javax.crypto.IllegalBlockSizeException;
+import javax.crypto.NoSuchPaddingException;
 import java.net.DatagramPacket;
 import java.net.DatagramSocket;
 import java.net.InetAddress;
 import java.net.SocketException;
 import java.nio.charset.StandardCharsets;
+import java.security.InvalidAlgorithmParameterException;
+import java.security.InvalidKeyException;
+import java.security.NoSuchAlgorithmException;
+import java.security.spec.InvalidKeySpecException;
 import java.sql.Timestamp;
 
 import static java.lang.System.exit;
+import static utils.Constants.AP_REPLY_MESSAGE_TYPE;
+import static utils.Constants.KERBEROS_VERSION_NUMBER;
 import static utils.Helpers.addMinutes;
 
 public class ApplicationServer {
@@ -51,11 +61,10 @@ public class ApplicationServer {
             InetAddress senderAddress = inputPacket.getAddress();
             int senderPort = inputPacket.getPort();
 
-            // TODO: Add logic for verification of client's identity and other AS functions
             doClientAuthentication();
 
-            /* TODO: */
-             constructApReplyForClient();
+            /* TODO: Check if Reply needs to be sent by checking the ApOptions Field (Make KerberosFlags) */
+            constructApReplyForClient();
 
             /* Serialization of reply object into json string */
             String replyForClientJsonString = objectMapper.writeValueAsString(replyForClient);
@@ -79,38 +88,12 @@ public class ApplicationServer {
 
     private void doClientAuthentication() {
         try {
-            // TODO: Add logic for verification of client's identity and other AP functions
-
-            ObjectMapper objectMapper = new ObjectMapper();
-
             /* Decrypt SGT from client request to retrieve session key */
-            Ticket tgt = clientRequest.ticket();
-            EncryptedData encryptedDataForTicket = tgt.getEncPart();
-            String cipherTextForTicket = new String(encryptedDataForTicket.getCipher(), StandardCharsets.UTF_8);
-            EncryptionData encryptionDataForTicket = new EncryptionData(
-                    cipherTextForTicket,
-                    null,
-                    encryptedDataForTicket.getIv()
-            );
-            String plainTextForTicket = PrivateKeyEncryptor.getDecryptionUsingSecretKey(
-                    encryptionDataForTicket, apSecretKey);
-            EncTicketPart unencryptedTicket = objectMapper.readValue(
-                    plainTextForTicket, EncTicketPart.class);
+            EncTicketPart unencryptedTicket = getUnencryptedTicketFromClientRequest();
             sessionKey = unencryptedTicket.getKey().getKeyValue();
 
             /* Decrypt Authenticator from client request to perform client authentication */
-            EncryptedData encryptedDataForAuthenticator = clientRequest.authenticator();
-            String cipherTextForAuthenticator = new String(
-                    encryptedDataForAuthenticator.getCipher(), StandardCharsets.UTF_8);
-            EncryptionData encryptionDataForAuthenticator = new EncryptionData(
-                    cipherTextForAuthenticator,
-                    null,
-                    encryptedDataForAuthenticator.getIv());
-            String plainTextForAuthenticator = PrivateKeyEncryptor.getDecryptionUsingSecretKey(
-                    encryptionDataForAuthenticator, sessionKey);
-
-            UnencryptedAuthenticator unencryptedAuthenticator = objectMapper.readValue(
-                    plainTextForAuthenticator, UnencryptedAuthenticator.class);
+            UnencryptedAuthenticator unencryptedAuthenticator = getUnencryptedAuthenticatorFromClientRequest();
 
             /*
             CHECKS ON AUTHENTICATOR:
@@ -126,14 +109,71 @@ public class ApplicationServer {
             if (! unencryptedTicket.getCname().equals(cNameInAuthenticator)) {
                 throw new IncorrectAuthenticatorException("Client name is incorrect");
             }
-
         } catch (Exception e) {
             e.printStackTrace();
         }
     }
 
     /* TODO: */
-    private void constructApReplyForClient() {
+    private void constructApReplyForClient() throws InvalidAlgorithmParameterException, NoSuchPaddingException, IllegalBlockSizeException, NoSuchAlgorithmException, InvalidKeySpecException, BadPaddingException, InvalidKeyException, JsonProcessingException {
+        ObjectMapper objectMapper = new ObjectMapper();
+
+        UnencryptedAuthenticator unencryptedAuthenticator = getUnencryptedAuthenticatorFromClientRequest();
+        EncApRepPart encApRepPart = new EncApRepPart(
+                unencryptedAuthenticator.getcTime()
+        );
+
+        String encApRepPartJsonString = objectMapper.writeValueAsString(encApRepPart);
+        EncryptionData encryptionForEncApRepPartJsonString = PrivateKeyEncryptor.getEncryptionUsingSecretKey(
+                encApRepPartJsonString,
+                sessionKey);
+
+        replyForClient = ImmutableKrbApRep.builder()
+                .pvno(KERBEROS_VERSION_NUMBER)
+                .msgType(AP_REPLY_MESSAGE_TYPE)
+                .encPart(new EncryptedData(
+                        1,
+                        KERBEROS_VERSION_NUMBER,
+                        encryptionForEncApRepPartJsonString.getIv(),
+                        encryptionForEncApRepPartJsonString.getCipherText().getBytes(StandardCharsets.UTF_8)
+                ))
+                .build();
+    }
+
+    private EncTicketPart getUnencryptedTicketFromClientRequest() throws InvalidAlgorithmParameterException, NoSuchPaddingException, IllegalBlockSizeException, NoSuchAlgorithmException, InvalidKeySpecException, BadPaddingException, InvalidKeyException, JsonProcessingException {
+        ObjectMapper objectMapper = new ObjectMapper();
+        Ticket tgt = clientRequest.ticket();
+        EncryptedData encryptedDataForTicket = tgt.getEncPart();
+        String cipherTextForTicket = new String(encryptedDataForTicket.getCipher(), StandardCharsets.UTF_8);
+        EncryptionData encryptionDataForTicket = new EncryptionData(
+                cipherTextForTicket,
+                null,
+                encryptedDataForTicket.getIv()
+        );
+        String plainTextForTicket = PrivateKeyEncryptor.getDecryptionUsingSecretKey(
+                encryptionDataForTicket, apSecretKey);
+        EncTicketPart unencryptedTicket = objectMapper.readValue(
+                plainTextForTicket, EncTicketPart.class);
+        sessionKey = unencryptedTicket.getKey().getKeyValue();
+        return unencryptedTicket;
+    }
+
+    private UnencryptedAuthenticator getUnencryptedAuthenticatorFromClientRequest() throws InvalidAlgorithmParameterException, NoSuchPaddingException, IllegalBlockSizeException, NoSuchAlgorithmException, InvalidKeySpecException, BadPaddingException, InvalidKeyException, JsonProcessingException {
+        ObjectMapper objectMapper = new ObjectMapper();
+
+        EncryptedData encryptedDataFromAuthenticator = clientRequest.authenticator();
+        String cipherTextForAuthenticator = new String(
+                encryptedDataFromAuthenticator.getCipher(), StandardCharsets.UTF_8);
+        EncryptionData encryptionDataForAuthenticator = new EncryptionData(
+                cipherTextForAuthenticator,
+                null,
+                encryptedDataFromAuthenticator.getIv());
+        String plainTextForAuthenticator = PrivateKeyEncryptor.getDecryptionUsingSecretKey(
+                encryptionDataForAuthenticator, sessionKey);
+
+        UnencryptedAuthenticator unencryptedAuthenticator = objectMapper.readValue(
+                plainTextForAuthenticator, UnencryptedAuthenticator.class);
+        return unencryptedAuthenticator;
     }
 
     public static void main(String[] args) {

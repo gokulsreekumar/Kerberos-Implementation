@@ -1,6 +1,8 @@
 package entities;
 
 import Exceptions.NonceDisMatchException;
+import Exceptions.TimestampMismatchException;
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import messageformats.*;
 import messageformats.ImmutableKrbApRep;
@@ -10,8 +12,15 @@ import messageformats.ImmutableKrbKdcReq;
 import utils.EncryptionData;
 import utils.PrivateKeyEncryptor;
 
+import javax.crypto.BadPaddingException;
+import javax.crypto.IllegalBlockSizeException;
+import javax.crypto.NoSuchPaddingException;
 import java.net.*;
 import java.nio.charset.StandardCharsets;
+import java.security.InvalidAlgorithmParameterException;
+import java.security.InvalidKeyException;
+import java.security.NoSuchAlgorithmException;
+import java.security.spec.InvalidKeySpecException;
 import java.sql.Timestamp;
 import java.util.Random;
 import java.util.Scanner;
@@ -42,6 +51,11 @@ public class Client {
     private byte[] sessionKeyWithServiceServer;
     private int nonceROne;
     private int nonceRTwo;
+
+    private Timestamp authenticationServerRequestTime;
+    private Timestamp ticketGrantingServerRequestTime;
+    private Timestamp applicationServerRequestTime;
+
 //    private PaData derEncodingOfApReqForTgsRequest;
 
     public Client(PrincipalName clientKerberosId, String loginPassword) {
@@ -121,9 +135,10 @@ public class Client {
 
     private void constructAuthenticationServerRequest() {
         nonceROne = generateNonce(32);
+        authenticationServerRequestTime = new Timestamp(System.currentTimeMillis());
         KrbKdcReqBody krbKdcReqBody = new KrbKdcReqBody(clientKerberosId,
                 TGS_SERVER,
-                addDays(new Timestamp(System.currentTimeMillis()), 1),
+                addDays(authenticationServerRequestTime, 1),
                 nonceROne,
                 1);
 
@@ -189,13 +204,13 @@ public class Client {
             ticketGrantingTicket = replyFromAs.ticket();
 
             PrincipalName applicationServerPrincipalName = new PrincipalName(applicationServerKerberosId);
-            Timestamp currentTime = new Timestamp(System.currentTimeMillis());
+            ticketGrantingServerRequestTime = new Timestamp(System.currentTimeMillis());
 
             /* Create Authenticator object */
             UnencryptedAuthenticator authenticatorForTgsReq = new UnencryptedAuthenticator(
                     AUTHENTICATOR_VERSION_NUMBER,
                     clientKerberosId,
-                    currentTime
+                    ticketGrantingServerRequestTime
             );
 
             /* Serialize Authenticator object into JSON string */
@@ -233,7 +248,7 @@ public class Client {
             KrbKdcReqBody krbKdcReqBody = new KrbKdcReqBody(
                     clientKerberosId,
                     applicationServerPrincipalName,
-                    addDays(currentTime, 1),
+                    addDays(ticketGrantingServerRequestTime, 1),
                     nonceRTwo,
                     1);
 
@@ -291,12 +306,12 @@ public class Client {
 
             PrincipalName applicationServerPrincipalName = new PrincipalName(applicationServerKerberosId);
 
-            Timestamp currentTime = new Timestamp(System.currentTimeMillis());
+            applicationServerRequestTime = new Timestamp(System.currentTimeMillis());
 
             UnencryptedAuthenticator authenticatorForApReq = new UnencryptedAuthenticator(
                     AUTHENTICATOR_VERSION_NUMBER,
                     clientKerberosId,
-                    currentTime
+                    applicationServerRequestTime
             );
 
             ObjectMapper objectMapper = new ObjectMapper();
@@ -322,7 +337,29 @@ public class Client {
         }
     }
 
-    public static void main(String[] args) {
+    private void handleApReply() throws InvalidAlgorithmParameterException, NoSuchPaddingException, IllegalBlockSizeException, NoSuchAlgorithmException, InvalidKeySpecException, BadPaddingException, InvalidKeyException, JsonProcessingException, TimestampMismatchException {
+        /* Decrypt encrypted part of the AP reply using the session key with service server*/
+        EncryptionData encryptionData = new EncryptionData(
+                new String(replyFromAp.encPart().getCipher(), StandardCharsets.UTF_8),
+                null,
+                replyFromAp.encPart().getIv());
+        System.out.println("ciphertext_replyFromAp"+new String(replyFromAp.encPart().getCipher(), StandardCharsets.UTF_8));
+        String plainText = PrivateKeyEncryptor.getDecryptionUsingSecretKey(encryptionData, sessionKeyWithServiceServer);
+        System.out.println(plainText);
+
+        /* See if the Timestamp sent in AP Request is same as the Timestamp present in AP Response */
+        ObjectMapper objectMapper = new ObjectMapper();
+        EncApRepPart encApRepPart = objectMapper.readValue(plainText, EncApRepPart.class);
+
+        if (encApRepPart.getCtime() == applicationServerRequestTime) {
+            // Kerberos Authentication Successful
+            System.out.println("Kerberos Authentication is Successful.");
+        } else {
+            throw new TimestampMismatchException("Timestamp received from AP Reply is mismatched from AP Request timestamp");
+        }
+    }
+
+    public static void main(String[] args) throws InvalidAlgorithmParameterException, NoSuchPaddingException, IllegalBlockSizeException, NoSuchAlgorithmException, InvalidKeySpecException, BadPaddingException, InvalidKeyException, JsonProcessingException, TimestampMismatchException {
         System.out.println("WELCOME TO KERBEROS AUTHENTICATION SYSTEM!");
         System.out.println("Please enter your kerberos id and password to get started");
         Scanner myObj = new Scanner(System.in);
@@ -354,7 +391,7 @@ public class Client {
         /* AP Exchange */
         client.constructApplicationServerRequest();
         client.sendRequestToServerAndReceiveResponse(AP_SERVICE_PORT, ServerType.AP);
-//        client.handleApReply();
+        client.handleApReply();
 
     }
 }

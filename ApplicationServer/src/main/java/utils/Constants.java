@@ -14,6 +14,7 @@ public class Constants {
     public static final int TGS_REQUEST_MESSSAGE_TYPE = 12;
     public static final int TGS_REPLY_MESSSAGE_TYPE = 13;
     public static final int AP_REQUEST_MESSAGE_TYPE = 14;
+    public static final int AP_REPLY_MESSAGE_TYPE = 15;
 
     // Hardcoded Server PrincipalNames
     public static final PrincipalName AS_SERVER = new PrincipalName("as_server");
@@ -38,22 +39,4 @@ public class Constants {
         TGS,
         AP
     }
-
-
-    //    public static final ImmutablePrincipalName client = ImmutablePrincipalName.builder()
-//            .nameString("client")
-//            .build();
-
-//    public static final ImmutablePrincipalName as_server = ImmutablePrincipalName.builder()
-//            .nameString("as_server")
-//            .build();
-
-//    public static final ImmutablePrincipalName tgs_server = ImmutablePrincipalName.builder()
-//            .nameString("tgs_server")
-//            .build();
-//
-//    public static final ImmutablePrincipalName application_server = ImmutablePrincipalName.builder()
-//            .nameString("application_server")
-//            .build();
-
 }
