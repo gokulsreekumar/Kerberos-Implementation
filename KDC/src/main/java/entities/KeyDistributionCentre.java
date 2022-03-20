@@ -106,9 +106,10 @@ public class KeyDistributionCentre {
                 case AS_REQUEST_MESSSAGE_TYPE:
                     clientAsRequest = clientRequest;
                     // TODO: Add logic for verification of client's identity and other AS functions
-//                    loadUserAuthData();
-                    // String clientPassword = getClientCredentials(clientRequest.reqBody().getCname().getNameString());
-                    constructAsReplyForClient("jessiya@123");
+                    loadUserAuthData();
+                    String clientPassword = getClientCredentials(clientRequest.reqBody().getCname().getNameString());
+                    System.out.println("The client password is {" + clientPassword + "}");
+                    constructAsReplyForClient(clientPassword);
                     /* Serialization of reply object into json string */
                     replyForClientJsonString = objectMapper.writeValueAsString(asReplyForClient);
                     break;
@@ -210,35 +211,44 @@ public class KeyDistributionCentre {
     }
 
     public void loadUserAuthData() throws IOException, CsvValidationException {
-        File file = new File("src/main/java/resources/ClientAuthenticationDatabase.csv");
-        // Create a fileReader object
-        FileReader fileReader = new FileReader(file.getPath());
-
-        // Create a csvReader object by passing fileReader as parameter
-        CSVReader csvReader = new CSVReader(fileReader);
-
+//        File file = new File("src/main/java/resources/ClientAuthenticationDatabase.csv");
+//        // Create a fileReader object
+//        FileReader fileReader = new FileReader(file.getPath());
+//
+//        // Create a csvReader object by passing fileReader as parameter
+//        CSVReader csvReader = new CSVReader(fileReader);
+//
+//        ArrayList<UserAuthData> allUserAuthData = new ArrayList<>();
+//        // Reading client record line by line
+//        String[] nextRecord;
+//        while ((nextRecord = csvReader.readNext()) != null) {
+//            UserAuthData oneUserAuthData = new UserAuthData();
+//            for (int _i = 0; _i < 2; _i++) {
+//                System.out.print(nextRecord[_i] + "\t");
+//                if (_i == 0) {
+//                    oneUserAuthData.setUserid(nextRecord[_i]);
+//                } else if (_i == 1) {
+//                    oneUserAuthData.setPassword(nextRecord[_i]);
+//                }
+//            }
+//            allUserAuthData.add(oneUserAuthData);
+//            System.out.println();
+//        }
         ArrayList<UserAuthData> allUserAuthData = new ArrayList<>();
-        // Reading client record line by line
-        String[] nextRecord;
-        while ((nextRecord = csvReader.readNext()) != null) {
-            UserAuthData oneUserAuthData = new UserAuthData();
-            for (int _i = 0; _i < 2; _i++) {
-                System.out.print(nextRecord[_i] + "\t");
-                if (_i == 0) {
-                    oneUserAuthData.setUserid(nextRecord[_i]);
-                } else if (_i == 1) {
-                    oneUserAuthData.setPassword(nextRecord[_i]);
-                }
-            }
-            allUserAuthData.add(oneUserAuthData);
-            System.out.println();
-        }
+        UserAuthData jessiya = new UserAuthData("joyjes", "jessiya@123");
+        UserAuthData gokul = new UserAuthData("sreekg", "gokul@123");
+
+        allUserAuthData.add(jessiya); allUserAuthData.add(gokul);
+
         userAuthDatabase = allUserAuthData;
     }
 
     public String getClientCredentials(String clientUserid) {
+        System.out.println("Client User Id = " + clientUserid);
         for (UserAuthData user : userAuthDatabase) {
-            if (user.getUserid() == clientUserid) {
+            System.out.println("USER = " + user.getUserid());
+            if (clientUserid.equals(user.getUserid())) {
+                System.out.println("Im here");
                 return user.getPassword();
             }
         }
