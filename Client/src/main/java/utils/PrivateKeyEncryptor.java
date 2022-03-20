@@ -134,9 +134,9 @@ public class PrivateKeyEncryptor {
 
         SecretKey key = generateSecretKeyFromPassword(password, Arrays.toString(cipher.salt));
 
-//        System.out.println(password);
-//        System.out.println(Arrays.toString(cipher.iv));
-//        System.out.println(Arrays.toString(cipher.salt));
+        System.out.println(password);
+        System.out.println(Arrays.toString(cipher.iv));
+        System.out.println(Arrays.toString(cipher.salt));
 
         return decrypt(SYMMETRIC_KEY_ALGORITHM, cipher.cipherText, key, new IvParameterSpec(cipher.iv));
     }
