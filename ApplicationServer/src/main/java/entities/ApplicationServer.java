@@ -22,8 +22,8 @@ import java.security.spec.InvalidKeySpecException;
 import java.sql.Timestamp;
 
 import static java.lang.System.exit;
-import static utils.Constants.AP_REPLY_MESSAGE_TYPE;
-import static utils.Constants.KERBEROS_VERSION_NUMBER;
+import static utils.Constants.*;
+import static utils.Constants.KRB_ERROR_MESSAGE_TYPE;
 import static utils.Helpers.addMinutes;
 
 public class ApplicationServer {
@@ -32,6 +32,7 @@ public class ApplicationServer {
     private DatagramSocket serverSocket;
     private KrbApReq clientRequest;
     private KrbApRep replyForClient;
+    private KrbError errorReplyForClient;
     private byte[] sessionKey;
 
     public void receiveClientRequestAndReply() {
@@ -52,31 +53,58 @@ public class ApplicationServer {
             byte[] dataReceived = inputPacket.getData();
             String dataString = new String(dataReceived);
 
-            /* Deserialization of json string to object */
             ObjectMapper objectMapper = new ObjectMapper();
-            clientRequest = objectMapper.readValue(dataString, KrbApReq.class);
-            System.out.println(clientRequest.toString());
 
-            /* Obtain client's IP address and the port */
-            InetAddress senderAddress = inputPacket.getAddress();
-            int senderPort = inputPacket.getPort();
+            /* Deserialization of json string to object (KrbMessage) */
+            KrbMessage krbMessageRequest = objectMapper.readValue(dataString, KrbMessage.class);
 
-            doClientAuthentication();
+            if (krbMessageRequest.applicationNumber() == KRB_ERROR_MESSAGE_TYPE) {
+                // DO WHATEVER NECESSARY
+            } else {
+                /* Deserialization of json string to object */
+                clientRequest = objectMapper.readValue(krbMessageRequest.krbMessageBody(), KrbApReq.class);
+                System.out.println(clientRequest.toString());
 
-            /* TODO: Check if Reply needs to be sent by checking the ApOptions Field (Make KerberosFlags) */
-            constructApReplyForClient();
+                /* Obtain client's IP address and the port */
+                InetAddress senderAddress = inputPacket.getAddress();
+                int senderPort = inputPacket.getPort();
 
-            /* Serialization of reply object into json string */
-            String replyForClientJsonString = objectMapper.writeValueAsString(replyForClient);
+                int ret = doClientAuthentication();
 
-            /* Convert string to byte array */
-            byte[] data = replyForClientJsonString.getBytes();
+                int applicationNumber = 0;
+                String replyForClientJsonString = null;
+                if (ret != SUCCESS) {
+                    // User does not exist
+                    applicationNumber = KRB_ERROR_MESSAGE_TYPE;
+                    constructApErrorMessageReplyForClient(ret);
+                    replyForClientJsonString = objectMapper.writeValueAsString(errorReplyForClient);
+                } else {
+                    /* TODO: Check if Reply needs to be sent by checking the ApOptions Field (Make KerberosFlags) */
+                    applicationNumber = AP_REPLY_MESSAGE_TYPE;
+                    constructApReplyForClient();
 
-            /* Creating a UDP packet */
-            DatagramPacket replyPacket = new DatagramPacket(data, data.length, senderAddress, senderPort);
+                    /* Serialization of reply object into json string */
+                    replyForClientJsonString = objectMapper.writeValueAsString(replyForClient);
+                }
 
-            /* Send the created packet to client */
-            serverSocket.send(replyPacket);
+                /* Convert string to byte array */
+                byte[] requestData = replyForClientJsonString.getBytes();
+
+                ImmutableKrbMessage krbMessageReply = ImmutableKrbMessage.builder()
+                        .applicationNumber(applicationNumber)
+                        .krbMessageBody(requestData)
+                        .build();
+
+                String krbMessageReplyJsonString = objectMapper.writeValueAsString(krbMessageReply);
+
+                byte[] data = krbMessageReplyJsonString.getBytes(StandardCharsets.UTF_8);
+
+                /* Creating a UDP packet */
+                DatagramPacket replyPacket = new DatagramPacket(data, data.length, senderAddress, senderPort);
+
+                /* Send the created packet to client */
+                serverSocket.send(replyPacket);
+            }
 
         } catch (Exception e) {
             e.printStackTrace();
@@ -85,8 +113,28 @@ public class ApplicationServer {
             exit(1);
         }
     }
+    private void constructApErrorMessageReplyForClient(int ret) throws InvalidAlgorithmParameterException, NoSuchPaddingException, IllegalBlockSizeException, NoSuchAlgorithmException, InvalidKeySpecException, BadPaddingException, InvalidKeyException, JsonProcessingException {
+        /* Decrypt Authenticator from client request to perform client authentication */
+        UnencryptedAuthenticator unencryptedAuthenticator = getUnencryptedAuthenticatorFromClientRequest();
 
-    private void doClientAuthentication() {
+        int errorCode = ret;
+        String eText = null;
+        if (ret == KRB_AP_ERR_SKEW) {
+            eText = "Clock skew too great - Timestamp is not recent";
+        } else if (ret == KRB_AP_ERR_BADMATCH) {
+            eText = "Ticket and authenticator don’t match";
+        }
+        errorReplyForClient = ImmutableKrbError.builder()
+                .pvno(KERBEROS_VERSION_NUMBER)
+                .msgType(KRB_ERROR_MESSAGE_TYPE)
+                .stime(new Timestamp(System.currentTimeMillis()))
+                .errorCode(errorCode)
+                .cname(unencryptedAuthenticator.getCname())
+                .sname(new PrincipalName("SERVICE"))
+                .eText(eText)
+                .build();
+    }
+    private int doClientAuthentication() {
         try {
             /* Decrypt SGT from client request to retrieve session key */
             EncTicketPart unencryptedTicket = getUnencryptedTicketFromClientRequest();
@@ -103,15 +151,16 @@ public class ApplicationServer {
             Timestamp timeStampAsSessionKeyProof = unencryptedAuthenticator.getcTime();
             Timestamp currentTimeStamp = new Timestamp(System.currentTimeMillis());
             if (addMinutes(timeStampAsSessionKeyProof, 10).before(currentTimeStamp)) {
-                throw new IncorrectAuthenticatorException("Timestamp in client authenticator is not recent");
+                return KRB_AP_ERR_SKEW;
             }
             String cNameInAuthenticator = unencryptedAuthenticator.getCname().getNameString();
             if (! unencryptedTicket.getCname().getNameString().equals(cNameInAuthenticator)) {
-                throw new IncorrectAuthenticatorException("Client name is incorrect");
+                return KRB_AP_ERR_BADMATCH;
             }
         } catch (Exception e) {
             e.printStackTrace();
         }
+        return SUCCESS;
     }
 
     /* TODO: */

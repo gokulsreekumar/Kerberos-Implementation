@@ -14,10 +14,9 @@ import java.util.Optional;
 public interface KrbError {
     int pvno();
     int msgType();
-    Optional<Timestamp> ctime();
     Timestamp stime();
     int errorCode();
-    Optional<PrincipalName> cname();
+    PrincipalName cname();
     PrincipalName sname();
     String eText();
 }

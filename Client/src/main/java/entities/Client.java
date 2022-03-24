@@ -1,9 +1,12 @@
 package entities;
 
-import Exceptions.NonceDisMatchException;
+import Exceptions.nonceMismatchException;
 import Exceptions.TimestampMismatchException;
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.JsonMappingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.exc.MismatchedInputException;
+import com.fasterxml.jackson.databind.exc.UnrecognizedPropertyException;
 import messageformats.*;
 import messageformats.ImmutableKrbApRep;
 import messageformats.ImmutableKrbApReq;
@@ -136,13 +139,16 @@ public class Client {
                 // Error
                 switch (serverType) {
                     case AS:
-                        errorReplyFromAs = objectMapper.readValue(krbMessageReceivedString, ImmutableKrbError.class);
+                        errorReplyFromAs = objectMapper.readValue(krbMessageReceived.krbMessageBody(),
+                                ImmutableKrbError.class);
                         break;
                     case TGS:
-                        errorReplyFromTgs = objectMapper.readValue(krbMessageReceivedString, ImmutableKrbError.class);
+                        errorReplyFromTgs = objectMapper.readValue(krbMessageReceived.krbMessageBody(),
+                                ImmutableKrbError.class);
                         break;
                     case AP:
-                        errorReplyFromAp = objectMapper.readValue(krbMessageReceivedString, ImmutableKrbError.class);
+                        errorReplyFromAp = objectMapper.readValue(krbMessageReceived.krbMessageBody(),
+                                ImmutableKrbError.class);
                         break;
                 }
                 System.out.println();
@@ -152,13 +158,16 @@ public class Client {
                 /* Deserialization of json string to object */
                 switch (serverType) {
                     case AS:
-                        replyFromAs = objectMapper.readValue(krbMessageReceivedString, ImmutableKrbKdcRep.class);
+                        replyFromAs = objectMapper.readValue(krbMessageReceived.krbMessageBody(),
+                                ImmutableKrbKdcRep.class);
                         break;
                     case TGS:
-                        replyFromTgs = objectMapper.readValue(krbMessageReceivedString, ImmutableKrbKdcRep.class);
+                        replyFromTgs = objectMapper.readValue(krbMessageReceived.krbMessageBody(),
+                                ImmutableKrbKdcRep.class);
                         break;
                     case AP:
-                        replyFromAp = objectMapper.readValue(krbMessageReceivedString, ImmutableKrbApRep.class);
+                        replyFromAp = objectMapper.readValue(krbMessageReceived.krbMessageBody(),
+                                ImmutableKrbApRep.class);
                         break;
                 }
 
@@ -217,11 +226,14 @@ public class Client {
 
             /* If nonces sent and received don't match, exit) */
             if (nonceROneReceivedInReply != nonceROne) {
-                throw new NonceDisMatchException("Nonce sent to AS and received from AS don't match! \n " +
+                throw new nonceMismatchException("Nonce sent to AS and received from AS don't match! \n " +
                         "This usually happens when an imposter is trying to impersonate AS.");
             }
 
-        } catch (NonceDisMatchException e) {
+        } catch (nonceMismatchException e) {
+            exit(1);
+        }  catch (BadPaddingException | JsonMappingException | InvalidKeyException exceptions) {
+            System.out.println("Decryption Failure: Bad Key Error");
             exit(1);
         } catch (Exception e) {
             e.printStackTrace();
@@ -330,11 +342,14 @@ public class Client {
 
             /* If nonces sent and received don't match, exit) */
             if (nonceRTwoReceivedInReply != nonceRTwo) {
-                throw new NonceDisMatchException("Nonce sent to TGS and received from TGS don't match! \n " +
+                throw new nonceMismatchException("Nonce sent to TGS and received from TGS don't match! \n " +
                         "This usually happens when an imposter is trying to impersonate TGS.");
             }
 
-        } catch (NonceDisMatchException e) {
+        } catch (BadPaddingException | JsonMappingException | InvalidKeyException exceptions) {
+            System.out.println("Decryption Failure: Bad Key Error");
+            exit(1);
+        } catch (nonceMismatchException e) {
             exit(1);
         } catch (Exception e) {
             e.printStackTrace();
@@ -403,12 +418,12 @@ public class Client {
 
     private void printKerberosErrorMessageFromAs() {
         System.out.println("Kerberos Authentication Failed!");
-        System.out.println("Error Code " + errorReplyFromAs.eText() + ": " + errorReplyFromAs.eText());
+        System.out.println("Error Code " + errorReplyFromAs.errorCode() + ": " + errorReplyFromAs.eText());
     }
 
     private void printKerberosErrorMessageFromTgs() {
         System.out.println("Kerberos Authentication Failed!");
-        System.out.println("Error Code " + errorReplyFromTgs.eText() + ": " + errorReplyFromTgs.eText());
+        System.out.println("Error Code " + errorReplyFromAs.errorCode() + ": " + errorReplyFromTgs.eText());
     }
 
     public static void main(String[] args) throws InvalidAlgorithmParameterException, NoSuchPaddingException, IllegalBlockSizeException, NoSuchAlgorithmException, InvalidKeySpecException, BadPaddingException, InvalidKeyException, JsonProcessingException, TimestampMismatchException {

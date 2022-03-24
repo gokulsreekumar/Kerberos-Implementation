@@ -1,9 +1,7 @@
 package entities;
 
-import Exceptions.IncorrectAuthenticatorException;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.opencsv.CSVReader;
 import com.opencsv.exceptions.CsvValidationException;
 import messageformats.*;
 import messageformats.EncKdcRepPart;
@@ -25,8 +23,6 @@ import javax.crypto.BadPaddingException;
 import javax.crypto.IllegalBlockSizeException;
 import javax.crypto.NoSuchPaddingException;
 import javax.crypto.SecretKey;
-import java.io.File;
-import java.io.FileReader;
 import java.io.IOException;
 import java.net.DatagramPacket;
 import java.net.DatagramSocket;
@@ -55,6 +51,7 @@ public class KeyDistributionCentre {
     private KrbError asErrorReplyForClient;
     private KrbKdcReq clientTgsRequest;
     private KrbKdcRep tgsReplyForClient;
+    private KrbError tgsErrorReplyForClient;
     private final static byte[] tgsSecretKey = "abcdefghijklmnopqrstuvwxyz123456".getBytes(StandardCharsets.UTF_8);
     private final static byte[] apSecretKey = "abcdefghijklmnopqrstuvwxyz123456".getBytes(StandardCharsets.UTF_8);
     private byte[] sessionKeyForTgs;
@@ -102,7 +99,6 @@ public class KeyDistributionCentre {
                 /* Deserialization of json string to object (KrbKdcReq) */
                 KrbKdcReq clientRequest = objectMapper.readValue(new String(krbMessageRequest.krbMessageBody(),
                         StandardCharsets.UTF_8), KrbKdcReq.class);
-                System.out.println(clientRequest.toString());
 
                 /* Obtain client's IP address and the port */
                 InetAddress senderAddress = inputPacket.getAddress();
@@ -122,7 +118,7 @@ public class KeyDistributionCentre {
                         if (clientPassword.equals("USER_NOT_FOUND")) {
                             // User does not exist
                             applicationNumber = KRB_ERROR_MESSAGE_TYPE;
-                            constructKerberosErrorMessageReplyForClient();
+                            constructAsErrorMessageReplyForClient();
                             replyForClientJsonString = objectMapper.writeValueAsString(asErrorReplyForClient);
                         } else {
                             applicationNumber = AS_REPLY_MESSSAGE_TYPE;
@@ -137,11 +133,11 @@ public class KeyDistributionCentre {
                         clientTgsRequest = clientRequest;
                         int ret = doClientAuthenticationFromTgsRequest();
 
-                        if (ret != 0) {
+                        if (ret != SUCCESS) {
                             // User does not exist
                             applicationNumber = KRB_ERROR_MESSAGE_TYPE;
-                            constructKerberosErrorMessageReplyForClient();
-                            replyForClientJsonString = objectMapper.writeValueAsString(asErrorReplyForClient);
+                            constructTgsErrorMessageReplyForClient(ret);
+                            replyForClientJsonString = objectMapper.writeValueAsString(tgsErrorReplyForClient);
                         } else {
                             applicationNumber = TGS_REQUEST_MESSSAGE_TYPE;
                             constructTgsReplyForClient();
@@ -249,7 +245,7 @@ public class KeyDistributionCentre {
         System.out.println("ciphertext" + encryptedEncKdcRepPart.getCipherText());
     }
 
-    private void constructKerberosErrorMessageReplyForClient() {
+    private void constructAsErrorMessageReplyForClient() {
         asErrorReplyForClient = ImmutableKrbError.builder()
                 .pvno(KERBEROS_VERSION_NUMBER)
                 .msgType(KRB_ERROR_MESSAGE_TYPE)
@@ -260,6 +256,25 @@ public class KeyDistributionCentre {
                 .eText("Client not found in Kerberos database")
                 .build();
 
+    }
+
+    private void constructTgsErrorMessageReplyForClient(int ret) {
+        int errorCode = ret;
+        String eText = null;
+        if (ret == KRB_AP_ERR_SKEW) {
+            eText = "Clock skew too great - Timestamp is not recent";
+        } else if (ret == KRB_AP_ERR_BADMATCH) {
+            eText = "Ticket and authenticator don’t match";
+        }
+        tgsErrorReplyForClient = ImmutableKrbError.builder()
+                .pvno(KERBEROS_VERSION_NUMBER)
+                .msgType(KRB_ERROR_MESSAGE_TYPE)
+                .stime(new Timestamp(System.currentTimeMillis()))
+                .errorCode(errorCode)
+                .cname(clientAsRequest.reqBody().getCname())
+                .sname(clientAsRequest.reqBody().getSname())
+                .eText(eText)
+                .build();
     }
 
     public void loadUserAuthData() throws IOException, CsvValidationException {
@@ -361,16 +376,14 @@ public class KeyDistributionCentre {
             }
             String cNameInAuthenticator = unencryptedAuthenticatorFromTgsReq.getCname().getNameString();
             if (! unencryptedTicketFromTgsReq.getCname().getNameString().equals(cNameInAuthenticator)) {
-                throw new IncorrectAuthenticatorException("Client name is incorrect");
+                return KRB_AP_ERR_BADMATCH;
             }
 
         } catch (Exception e) {
             e.printStackTrace();
         }
 
-
-
-        return 0;
+        return SUCCESS;
     }
 
     public void constructTgsReplyForClient() throws NoSuchAlgorithmException, JsonProcessingException, InvalidAlgorithmParameterException, NoSuchPaddingException, IllegalBlockSizeException, InvalidKeySpecException, BadPaddingException, InvalidKeyException {
