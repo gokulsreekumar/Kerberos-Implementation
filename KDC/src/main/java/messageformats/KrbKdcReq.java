@@ -15,8 +15,6 @@ import java.util.Optional;
 @JsonSerialize(as = ImmutableKrbKdcReq.class)
 @JsonDeserialize(as = ImmutableKrbKdcReq.class)
 public interface KrbKdcReq {
-//    long serialVersionUID = 1L;
-
     int pvno();
     int msgType();
     PaData[] paData();
