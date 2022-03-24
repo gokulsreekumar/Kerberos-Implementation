@@ -41,10 +41,13 @@ public class Client {
     private String loginPassword;
     private ImmutableKrbKdcReq requestToAs;
     private ImmutableKrbKdcRep replyFromAs;
+    private ImmutableKrbError errorReplyFromAs;
     private ImmutableKrbKdcReq requestToTgs;
     private ImmutableKrbKdcRep replyFromTgs;
+    private ImmutableKrbError errorReplyFromTgs;
     private ImmutableKrbApReq requestToAp;
     private ImmutableKrbApRep replyFromAp;
+    private ImmutableKrbError errorReplyFromAp;
     private Ticket ticketGrantingTicket;
     private Ticket serviceGrantingTicket;
     private byte[] sessionKeyWithTgs;
@@ -67,7 +70,7 @@ public class Client {
     This is used for request/response exchange with a server.
     Server can either be KDC or Application Server
     */
-    private void sendRequestToServerAndReceiveResponse(int serverPort, ServerType serverType) {
+    private int sendRequestToServerAndReceiveResponse(int serverPort, ServerType serverType) {
         try {
             /*
              * Instantiate client socket.
@@ -79,22 +82,37 @@ public class Client {
             InetAddress IPAddress = InetAddress.getByName("localhost");
 
             /* Serialization of object into json string */
+            int applicationNumber = 0;
             String requestJsonString = null;
             ObjectMapper objectMapper = new ObjectMapper();
             switch (serverType) {
                 case AS:
+                    applicationNumber = AS_REQUEST_MESSSAGE_TYPE;
                     requestJsonString = objectMapper.writeValueAsString(requestToAs);
                     break;
                 case TGS:
+                    applicationNumber = TGS_REQUEST_MESSSAGE_TYPE;
                     requestJsonString = objectMapper.writeValueAsString(requestToTgs);
                     break;
                 case AP:
+                    applicationNumber = AP_REQUEST_MESSAGE_TYPE;
                     requestJsonString = objectMapper.writeValueAsString(requestToAp);
                     break;
             }
 
             /* Convert string to byte array */
-            byte[] data = requestJsonString.getBytes();
+            byte[] requestData = requestJsonString.getBytes(StandardCharsets.UTF_8);
+
+            /* Enclose this message bodu inside the KrbMessage */
+            ImmutableKrbMessage krbMessageRequest = ImmutableKrbMessage.builder()
+                    .applicationNumber(applicationNumber)
+                    .krbMessageBody(requestData)
+                    .build();
+
+            String krbMessageJsonString = objectMapper.writeValueAsString(krbMessageRequest);
+
+            /* Convert string to byte array */
+            byte[] data = krbMessageJsonString.getBytes(StandardCharsets.UTF_8);
 
             /* Creating a UDP packet */
             DatagramPacket sendingPacket = new DatagramPacket(data, data.length, IPAddress, serverPort);
@@ -108,26 +126,48 @@ public class Client {
             DatagramPacket receivingPacket = new DatagramPacket(receivingDataBuffer, receivingDataBuffer.length);
             clientSocket.receive(receivingPacket);
 
-            byte[] dataReceived = receivingPacket.getData();
-            String dataString = new String(dataReceived);
+            byte[] krbMessageReceivedData = receivingPacket.getData();
+            String krbMessageReceivedString = new String(krbMessageReceivedData, StandardCharsets.UTF_8);
 
-            /* Deserialization of json string to object */
-            switch (serverType) {
-                case AS:
-                    replyFromAs = objectMapper.readValue(dataString, ImmutableKrbKdcRep.class);
-                    break;
-                case TGS:
-                    replyFromTgs = objectMapper.readValue(dataString, ImmutableKrbKdcRep.class);
-                    break;
-                case AP:
-                    replyFromAp = objectMapper.readValue(dataString, ImmutableKrbApRep.class);
-                    break;
+            /* Deserialization of json string to object (KrbMessage) */
+            KrbMessage krbMessageReceived = objectMapper.readValue(krbMessageReceivedString, KrbMessage.class);
+
+            if (krbMessageReceived.applicationNumber() == KRB_ERROR_MESSAGE_TYPE) {
+                // Error
+                switch (serverType) {
+                    case AS:
+                        errorReplyFromAs = objectMapper.readValue(krbMessageReceivedString, ImmutableKrbError.class);
+                        break;
+                    case TGS:
+                        errorReplyFromTgs = objectMapper.readValue(krbMessageReceivedString, ImmutableKrbError.class);
+                        break;
+                    case AP:
+                        errorReplyFromAp = objectMapper.readValue(krbMessageReceivedString, ImmutableKrbError.class);
+                        break;
+                }
+                System.out.println();
+                return KRB_ERROR_MESSAGE_TYPE;
+
+            } else {
+                /* Deserialization of json string to object */
+                switch (serverType) {
+                    case AS:
+                        replyFromAs = objectMapper.readValue(krbMessageReceivedString, ImmutableKrbKdcRep.class);
+                        break;
+                    case TGS:
+                        replyFromTgs = objectMapper.readValue(krbMessageReceivedString, ImmutableKrbKdcRep.class);
+                        break;
+                    case AP:
+                        replyFromAp = objectMapper.readValue(krbMessageReceivedString, ImmutableKrbApRep.class);
+                        break;
+                }
+
+                // Closing the socket connection with the server
+                clientSocket.close();
+                return SUCCESS;
             }
 
-//            System.out.println(replyFromAs.toString());
 
-            // Closing the socket connection with the server
-            clientSocket.close();
         } catch (Exception e) {
             e.printStackTrace();
         }
@@ -359,6 +399,16 @@ public class Client {
         }
     }
 
+    private void printKerberosErrorMessageFromAs() {
+        System.out.println("Kerberos Authentication Failed!");
+        System.out.println("Error Code " + errorReplyFromAs.eText() + ": " + errorReplyFromAs.eText());
+    }
+
+    private void printKerberosErrorMessageFromTgs() {
+        System.out.println("Kerberos Authentication Failed!");
+        System.out.println("Error Code " + errorReplyFromTgs.eText() + ": " + errorReplyFromTgs.eText());
+    }
+
     public static void main(String[] args) throws InvalidAlgorithmParameterException, NoSuchPaddingException, IllegalBlockSizeException, NoSuchAlgorithmException, InvalidKeySpecException, BadPaddingException, InvalidKeyException, JsonProcessingException, TimestampMismatchException {
         System.out.println("WELCOME TO KERBEROS AUTHENTICATION SYSTEM!");
         System.out.println("Please enter your kerberos id and password to get started");
@@ -373,7 +423,11 @@ public class Client {
 
         /* AS Exchange */
         client.constructAuthenticationServerRequest();
-        client.sendRequestToServerAndReceiveResponse(KDC_SERVICE_PORT, ServerType.AS);
+        int ret = client.sendRequestToServerAndReceiveResponse(KDC_SERVICE_PORT, ServerType.AS);
+        if (ret == KRB_ERROR_MESSAGE_TYPE) {
+            client.printKerberosErrorMessageFromAs();
+            exit(1);
+        }
         /* TODO: check if user is successfully authenticated */
         client.handleAsReply();
 
@@ -385,7 +439,11 @@ public class Client {
 
         /* TGS Exchange */
         client.constructTicketGrantingServerRequest(client.applicationServerKerberosId);
-        client.sendRequestToServerAndReceiveResponse(KDC_SERVICE_PORT, ServerType.TGS);
+        ret = client.sendRequestToServerAndReceiveResponse(KDC_SERVICE_PORT, ServerType.TGS);
+        if (ret == KRB_ERROR_MESSAGE_TYPE) {
+            client.printKerberosErrorMessageFromTgs();
+            exit(1);
+        }
         client.handleTgsReply();
 
         /* AP Exchange */

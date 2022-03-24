@@ -15,6 +15,7 @@ public class Constants {
     public static final int TGS_REPLY_MESSSAGE_TYPE = 13;
     public static final int AP_REQUEST_MESSAGE_TYPE = 14;
     public static final int AP_REPLY_MESSAGE_TYPE = 15;
+    public static final int KRB_ERROR_MESSAGE_TYPE = 30;
 
     // Hardcoded Server PrincipalNames
     public static final PrincipalName AS_SERVER = new PrincipalName("as_server");
