@@ -52,6 +52,7 @@ public class KeyDistributionCentre {
     private static ArrayList<UserAuthData> userAuthDatabase;
     private KrbKdcReq clientAsRequest;
     private KrbKdcRep asReplyForClient;
+    private KrbError asErrorReplyForClient;
     private KrbKdcReq clientTgsRequest;
     private KrbKdcRep tgsReplyForClient;
     private final static byte[] tgsSecretKey = "abcdefghijklmnopqrstuvwxyz123456".getBytes(StandardCharsets.UTF_8);
@@ -89,48 +90,87 @@ public class KeyDistributionCentre {
 
             /* get the data bytes from inputPacket and convert byte array to json string */
             byte[] dataReceived = inputPacket.getData();
-            String dataString = new String(dataReceived);
+            String dataString = new String(dataReceived, StandardCharsets.UTF_8);
 
-            /* Deserialization of json string to object */
             ObjectMapper objectMapper = new ObjectMapper();
-            KrbKdcReq clientRequest = objectMapper.readValue(dataString, KrbKdcReq.class);
-            System.out.println(clientRequest.toString());
 
-            /* Obtain client's IP address and the port */
-            InetAddress senderAddress = inputPacket.getAddress();
-            int senderPort = inputPacket.getPort();
+            /* Deserialization of json string to object (KrbMessage) */
+            KrbMessage krbMessageRequest = objectMapper.readValue(dataString, KrbMessage.class);
 
-            String replyForClientJsonString = null;
-            switch (clientRequest.msgType()) {
+            if (krbMessageRequest.applicationNumber() == KRB_ERROR_MESSAGE_TYPE) {
+                // DO WHATEVER NECESSARY
+            } else {
+                /* Deserialization of json string to object (KrbKdcReq) */
+                KrbKdcReq clientRequest = objectMapper.readValue(new String(krbMessageRequest.krbMessageBody(),
+                        StandardCharsets.UTF_8), KrbKdcReq.class);
+                System.out.println(clientRequest.toString());
 
-                case AS_REQUEST_MESSSAGE_TYPE:
-                    clientAsRequest = clientRequest;
-                    // TODO: Add logic for verification of client's identity and other AS functions
-                    loadUserAuthData();
-                    String clientPassword = getClientCredentials(clientRequest.reqBody().getCname().getNameString());
-                    System.out.println("The client password is {" + clientPassword + "}");
-                    constructAsReplyForClient(clientPassword);
-                    /* Serialization of reply object into json string */
-                    replyForClientJsonString = objectMapper.writeValueAsString(asReplyForClient);
-                    break;
+                /* Obtain client's IP address and the port */
+                InetAddress senderAddress = inputPacket.getAddress();
+                int senderPort = inputPacket.getPort();
 
-                case TGS_REQUEST_MESSSAGE_TYPE:
-                    clientTgsRequest = clientRequest;
-                    doClientAuthenticationFromTgsRequest();
-                    constructTgsReplyForClient();
-                    /* Serialization of reply object into json string */
-                    replyForClientJsonString = objectMapper.writeValueAsString(tgsReplyForClient);
-                    break;
+                int applicationNumber = 0;
+                String replyForClientJsonString = null;
+                switch (clientRequest.msgType()) {
+
+                    case AS_REQUEST_MESSSAGE_TYPE:
+                        clientAsRequest = clientRequest;
+                        // TODO: Add logic for verification of client's identity and other AS functions
+                        loadUserAuthData();
+                        String clientPassword = getClientCredentials(clientRequest.reqBody().getCname().getNameString());
+                        System.out.println("The client password is {" + clientPassword + "}");
+
+                        if (clientPassword.equals("USER_NOT_FOUND")) {
+                            // User does not exist
+                            applicationNumber = KRB_ERROR_MESSAGE_TYPE;
+                            constructKerberosErrorMessageReplyForClient();
+                            replyForClientJsonString = objectMapper.writeValueAsString(asErrorReplyForClient);
+                        } else {
+                            applicationNumber = AS_REPLY_MESSSAGE_TYPE;
+                            constructAsReplyForClient(clientPassword);
+                            /* Serialization of reply object into json string */
+                            replyForClientJsonString = objectMapper.writeValueAsString(asReplyForClient);
+                        }
+
+                        break;
+
+                    case TGS_REQUEST_MESSSAGE_TYPE:
+                        clientTgsRequest = clientRequest;
+                        int ret = doClientAuthenticationFromTgsRequest();
+
+                        if (ret != 0) {
+                            // User does not exist
+                            applicationNumber = KRB_ERROR_MESSAGE_TYPE;
+                            constructKerberosErrorMessageReplyForClient();
+                            replyForClientJsonString = objectMapper.writeValueAsString(asErrorReplyForClient);
+                        } else {
+                            applicationNumber = TGS_REQUEST_MESSSAGE_TYPE;
+                            constructTgsReplyForClient();
+                            /* Serialization of reply object into json string */
+                            replyForClientJsonString = objectMapper.writeValueAsString(tgsReplyForClient);
+                        }
+
+                        break;
+                }
+
+                /* Convert string to byte array */
+                byte[] requestData = replyForClientJsonString.getBytes(StandardCharsets.UTF_8);
+
+                ImmutableKrbMessage krbMessageReply = ImmutableKrbMessage.builder()
+                        .applicationNumber(applicationNumber)
+                        .krbMessageBody(requestData)
+                        .build();
+
+                String krbMessageReplyJsonString = objectMapper.writeValueAsString(krbMessageReply);
+
+                byte[] data = krbMessageReplyJsonString.getBytes(StandardCharsets.UTF_8);
+
+                /* Creating a UDP packet */
+                DatagramPacket replyPacket = new DatagramPacket(data, data.length, senderAddress, senderPort);
+
+                /* Send the created packet to client */
+                serverSocket.send(replyPacket);
             }
-
-            /* Convert string to byte array */
-            byte[] data = replyForClientJsonString.getBytes();
-
-            /* Creating a UDP packet */
-            DatagramPacket replyPacket = new DatagramPacket(data, data.length, senderAddress, senderPort);
-
-            /* Send the created packet to client */
-            serverSocket.send(replyPacket);
 
         } catch (Exception e) {
             e.printStackTrace();
@@ -210,6 +250,19 @@ public class KeyDistributionCentre {
         System.out.println("ciphertext" + encryptedEncKdcRepPart.getCipherText());
     }
 
+    private void constructKerberosErrorMessageReplyForClient() {
+        asErrorReplyForClient = ImmutableKrbError.builder()
+                .pvno(KERBEROS_VERSION_NUMBER)
+                .msgType(KRB_ERROR_MESSAGE_TYPE)
+                .stime(new Timestamp(System.currentTimeMillis()))
+                .errorCode(KDC_ERR_C_PRINCIPAL_UNKNOWN)
+                .cname(clientAsRequest.reqBody().getCname())
+                .sname(clientAsRequest.reqBody().getSname())
+                .eText("Client not found in Kerberos database")
+                .build();
+
+    }
+
     public void loadUserAuthData() throws IOException, CsvValidationException {
 //        File file = new File("src/main/java/resources/ClientAuthenticationDatabase.csv");
 //        // Create a fileReader object
@@ -239,7 +292,6 @@ public class KeyDistributionCentre {
         UserAuthData gokul = new UserAuthData("sreekg", "gokul@123");
 
         allUserAuthData.add(jessiya); allUserAuthData.add(gokul);
-
         userAuthDatabase = allUserAuthData;
     }
 
@@ -255,24 +307,18 @@ public class KeyDistributionCentre {
         return "USER_NOT_FOUND";
     }
 
-    private void doClientAuthenticationFromTgsRequest() {
+    private int doClientAuthenticationFromTgsRequest() {
         try {
-            KrbApReq apReqInTgsRequest = null;
 
-            // TODO: Add logic for verification of client's identity and other TGS functions
-//            for (PaData paData: clientRequest.paData()){
-//                if (paData.getPadataType() == PA_TGS_REQ) {
-            String aPReqJson = new String(clientTgsRequest.paData()[0].getPadataValue(), StandardCharsets.UTF_8);
+            String apReqJson = new String(clientTgsRequest.paData()[0].getPadataValue(), StandardCharsets.UTF_8);
 
             ObjectMapper objectMapper = new ObjectMapper();
-            apReqInTgsRequest = objectMapper.readValue(aPReqJson, KrbApReq.class);
-//                }
-//            }
+            KrbApReq apReqInTgsRequest = objectMapper.readValue(apReqJson, KrbApReq.class);
 
             System.out.println("appp"+apReqInTgsRequest.toString());
 
             /*
-                Decrypt TGT from AP_REQ to retrieve session key
+                Decrypt TGT from AP_REQ using secret key of TGS to retrieve session key
             */
             Ticket tgt = apReqInTgsRequest.ticket();
             EncryptedData encryptedDataForTicket = tgt.getEncPart();
@@ -288,6 +334,9 @@ public class KeyDistributionCentre {
                     plainTextForTicket, EncTicketPart.class);
             sessionKeyForTgs = unencryptedTicketFromTgsReq.getKey().getKeyValue();
 
+            /*
+                Decrypt Authenticator from AP_REQ using the obtained session key
+            */
             EncryptedData encryptedDataForAuthenticator = apReqInTgsRequest.authenticator();
             String cipherTextForAuthenticator = new String(
                     encryptedDataForAuthenticator.getCipher(), StandardCharsets.UTF_8);
@@ -302,13 +351,13 @@ public class KeyDistributionCentre {
 
             /*
             CHECKS ON AUTHENTICATOR:
-            1. Is Timestamp recent? (if issued maximum 10 minutes before)
+            1. Is Timestamp recent? (if issued maximum 5 minutes before)
             2. Is client name in authenticator and ticket same?
              */
             Timestamp timeStampAsSessionKeyProof = unencryptedAuthenticatorFromTgsReq.getcTime();
             Timestamp currentTimeStamp = new Timestamp(System.currentTimeMillis());
-            if (addMinutes(timeStampAsSessionKeyProof, 10).before(currentTimeStamp)) {
-                throw new IncorrectAuthenticatorException("Timestamp in client authenticator is not recent");
+            if (addMinutes(timeStampAsSessionKeyProof, 5).before(currentTimeStamp)) {
+                return KRB_AP_ERR_SKEW;
             }
             String cNameInAuthenticator = unencryptedAuthenticatorFromTgsReq.getCname().getNameString();
             if (! unencryptedTicketFromTgsReq.getCname().getNameString().equals(cNameInAuthenticator)) {
@@ -318,6 +367,10 @@ public class KeyDistributionCentre {
         } catch (Exception e) {
             e.printStackTrace();
         }
+
+
+
+        return 0;
     }
 
     public void constructTgsReplyForClient() throws NoSuchAlgorithmException, JsonProcessingException, InvalidAlgorithmParameterException, NoSuchPaddingException, IllegalBlockSizeException, InvalidKeySpecException, BadPaddingException, InvalidKeyException {
