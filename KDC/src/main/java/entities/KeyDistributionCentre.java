@@ -93,6 +93,7 @@ public class KeyDistributionCentre {
             String dataString = new String(dataReceived, StandardCharsets.UTF_8);
 
             ObjectMapper objectMapper = new ObjectMapper();
+
             /* Deserialization of json string to object (KrbMessage) */
             KrbMessage krbMessageRequest = objectMapper.readValue(dataString, KrbMessage.class);
 
@@ -291,7 +292,6 @@ public class KeyDistributionCentre {
         UserAuthData gokul = new UserAuthData("sreekg", "gokul@123");
 
         allUserAuthData.add(jessiya); allUserAuthData.add(gokul);
-
         userAuthDatabase = allUserAuthData;
     }
 
