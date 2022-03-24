@@ -106,7 +106,7 @@ public class ApplicationServer {
                 throw new IncorrectAuthenticatorException("Timestamp in client authenticator is not recent");
             }
             String cNameInAuthenticator = unencryptedAuthenticator.getCname().getNameString();
-            if (! unencryptedTicket.getCname().equals(cNameInAuthenticator)) {
+            if (! unencryptedTicket.getCname().getNameString().equals(cNameInAuthenticator)) {
                 throw new IncorrectAuthenticatorException("Client name is incorrect");
             }
         } catch (Exception e) {

@@ -311,7 +311,7 @@ public class KeyDistributionCentre {
                 throw new IncorrectAuthenticatorException("Timestamp in client authenticator is not recent");
             }
             String cNameInAuthenticator = unencryptedAuthenticatorFromTgsReq.getCname().getNameString();
-            if (! unencryptedTicketFromTgsReq.getCname().equals(cNameInAuthenticator)) {
+            if (! unencryptedTicketFromTgsReq.getCname().getNameString().equals(cNameInAuthenticator)) {
                 throw new IncorrectAuthenticatorException("Client name is incorrect");
             }
 
@@ -373,6 +373,7 @@ public class KeyDistributionCentre {
                 new EncryptedData(
                         1,
                         KERBEROS_VERSION_NUMBER,
+                        encryptionDataForTicket.getIv(),
                         encryptionDataForTicket.getCipherText().getBytes(StandardCharsets.UTF_8)));
 
         PaData[] paData = new PaData[0];

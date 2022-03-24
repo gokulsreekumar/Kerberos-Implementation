@@ -11,6 +11,10 @@ public class EncTicketPart {
     Timestamp endTime;
     Optional<Timestamp> renewTill;
 
+    // For serialization
+    public EncTicketPart() {
+    }
+
     public EncTicketPart(EncryptionKey key, PrincipalName cname, Timestamp authTime, Optional<Timestamp> startTime, Timestamp endTime, Optional<Timestamp> renewTill) {
         this.key = key;
         this.cname = cname;
