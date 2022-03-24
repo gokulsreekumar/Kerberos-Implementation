@@ -9,6 +9,10 @@ public class EncApRepPart implements Serializable {
     // Integer cusec;
     private Optional<Integer> seqNumber;
 
+    public EncApRepPart() {
+
+    }
+
     public EncApRepPart(Timestamp ctime) {
         this.ctime = ctime;
     }

@@ -269,10 +269,10 @@ public class Client {
         try {
             /* Decrypt encrypted part of the TGS reply */
             EncryptionData encryptionData = new EncryptionData(
-                    new String(replyFromAs.encPart().getCipher(), StandardCharsets.UTF_8),
+                    new String(replyFromTgs.encPart().getCipher(), StandardCharsets.UTF_8),
                     null,
-                    replyFromAs.encPart().getIv());
-            System.out.println("ciphertext"+new String(replyFromAs.encPart().getCipher(), StandardCharsets.UTF_8));
+                    replyFromTgs.encPart().getIv());
+            System.out.println("ciphertext"+new String(replyFromTgs.encPart().getCipher(), StandardCharsets.UTF_8));
             String plainText = PrivateKeyEncryptor.getDecryptionUsingSecretKey(encryptionData, sessionKeyWithTgs);
             System.out.println(plainText);
 
@@ -302,7 +302,7 @@ public class Client {
     private void constructApplicationServerRequest() {
         try {
 
-            serviceGrantingTicket = replyFromAs.ticket();
+            serviceGrantingTicket = replyFromTgs.ticket();
 
             PrincipalName applicationServerPrincipalName = new PrincipalName(applicationServerKerberosId);
 
@@ -351,7 +351,7 @@ public class Client {
         ObjectMapper objectMapper = new ObjectMapper();
         EncApRepPart encApRepPart = objectMapper.readValue(plainText, EncApRepPart.class);
 
-        if (encApRepPart.getCtime() == applicationServerRequestTime) {
+        if (encApRepPart.getCtime().equals(applicationServerRequestTime)) {
             // Kerberos Authentication Successful
             System.out.println("Kerberos Authentication is Successful.");
         } else {
