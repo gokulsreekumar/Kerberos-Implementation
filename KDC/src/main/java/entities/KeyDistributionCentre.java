@@ -2,6 +2,7 @@ package entities;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.opencsv.CSVReader;
 import com.opencsv.exceptions.CsvValidationException;
 import messageformats.*;
 import messageformats.EncKdcRepPart;
@@ -23,6 +24,8 @@ import javax.crypto.BadPaddingException;
 import javax.crypto.IllegalBlockSizeException;
 import javax.crypto.NoSuchPaddingException;
 import javax.crypto.SecretKey;
+import java.io.File;
+import java.io.FileReader;
 import java.io.IOException;
 import java.net.DatagramPacket;
 import java.net.DatagramSocket;
@@ -60,14 +63,16 @@ public class KeyDistributionCentre {
     private byte[] sessionKeyForTgs;
     private DatagramSocket serverSocket;
     private static HashMap<String, byte[]> serverIdSecretKeyMap = new HashMap<>();
+    private static String absolutePath = "/Users/gokul/Developer/Kerberos-Implementation/KDC/src/main/java/entities/";
 
-    public static void main(String[] args) {
+    public static void main(String[] args) throws CsvValidationException, IOException {
         /* Generating Session Key for Client - AP Server Communication */
 
         serverIdSecretKeyMap.put("FTP", ftpSecretKey);
         serverIdSecretKeyMap.put("WEB", webSecretKey);
 
         KeyDistributionCentre keyDistributionCentre = new KeyDistributionCentre();
+        loadUserAuthData();
         try {
             /* Instantiate a new DatagramSocket to receive responses from the client */
             keyDistributionCentre.serverSocket = new DatagramSocket(KDC_SERVICE_PORT);
@@ -78,6 +83,38 @@ public class KeyDistributionCentre {
         while (true) {
             keyDistributionCentre.receiveClientRequestAndReply();
         }
+    }
+    public static void loadUserAuthData() throws IOException, CsvValidationException {
+        File file = new File(absolutePath + "KerberosDatabase_Client.csv");
+        // Create a fileReader object
+        FileReader fileReader = new FileReader(file.getPath());
+
+        // Create a csvReader object by passing fileReader as parameter
+        CSVReader csvReader = new CSVReader(fileReader);
+
+        ArrayList<UserAuthData> allUserAuthData = new ArrayList<>();
+        // Reading client record line by line
+        String[] nextRecord;
+        while ((nextRecord = csvReader.readNext()) != null) {
+            UserAuthData oneUserAuthData = new UserAuthData();
+            for (int _i = 0; _i < 2; _i++) {
+                System.out.print(nextRecord[_i] + "\t");
+                if (_i == 0) {
+                    oneUserAuthData.setUserid(nextRecord[_i]);
+                } else if (_i == 1) {
+                    oneUserAuthData.setPassword(nextRecord[_i]);
+                }
+            }
+            allUserAuthData.add(oneUserAuthData);
+            System.out.println();
+        }
+//        ArrayList<UserAuthData> allUserAuthData = new ArrayList<>();
+//        UserAuthData jessiya = new UserAuthData("joyjes", "jessiya@123");
+//        UserAuthData gokul = new UserAuthData("sreekg", "gokul@123");
+
+//        allUserAuthData.add(jessiya); allUserAuthData.add(gokul);
+
+        userAuthDatabase = allUserAuthData;
     }
 
     public void receiveClientRequestAndReply() {
@@ -301,39 +338,6 @@ public class KeyDistributionCentre {
                 .sname(clientAsRequest.reqBody().getSname())
                 .eText(eText)
                 .build();
-    }
-
-    public void loadUserAuthData() throws IOException, CsvValidationException {
-//        File file = new File("src/main/java/resources/ClientAuthenticationDatabase.csv");
-//        // Create a fileReader object
-//        FileReader fileReader = new FileReader(file.getPath());
-//
-//        // Create a csvReader object by passing fileReader as parameter
-//        CSVReader csvReader = new CSVReader(fileReader);
-//
-//        ArrayList<UserAuthData> allUserAuthData = new ArrayList<>();
-//        // Reading client record line by line
-//        String[] nextRecord;
-//        while ((nextRecord = csvReader.readNext()) != null) {
-//            UserAuthData oneUserAuthData = new UserAuthData();
-//            for (int _i = 0; _i < 2; _i++) {
-//                System.out.print(nextRecord[_i] + "\t");
-//                if (_i == 0) {
-//                    oneUserAuthData.setUserid(nextRecord[_i]);
-//                } else if (_i == 1) {
-//                    oneUserAuthData.setPassword(nextRecord[_i]);
-//                }
-//            }
-//            allUserAuthData.add(oneUserAuthData);
-//            System.out.println();
-//        }
-        ArrayList<UserAuthData> allUserAuthData = new ArrayList<>();
-        UserAuthData jessiya = new UserAuthData("joyjes", "jessiya@123");
-        UserAuthData gokul = new UserAuthData("sreekg", "gokul@123");
-
-        allUserAuthData.add(jessiya); allUserAuthData.add(gokul);
-
-        userAuthDatabase = allUserAuthData;
     }
 
     public String getClientCredentials(String clientUserid) {
