@@ -1,6 +1,5 @@
 package entities;
 
-import Exceptions.IncorrectAuthenticatorException;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import messageformats.*;
@@ -31,7 +30,7 @@ import static utils.Constants.KRB_ERROR_MESSAGE_TYPE;
 import static utils.Helpers.addMinutes;
 
 public class ApplicationServer {
-    public final static int AP_SERVICE_PORT = 50002;
+    public final static int FTP_SERVER_PORT = 50002;
     private final static byte[] apSecretKey = "abcdefghijklmnopqrstuvwxyz123456".getBytes(StandardCharsets.UTF_8);
     private DatagramSocket serverSocket;
     private KrbApReq clientRequest;
@@ -312,7 +311,7 @@ public class ApplicationServer {
         ApplicationServer applicationServer = new ApplicationServer();
         try {
             /* Instantiate a new DatagramSocket to receive responses from the client */
-            applicationServer.serverSocket = new DatagramSocket(AP_SERVICE_PORT);
+            applicationServer.serverSocket = new DatagramSocket(FTP_SERVER_PORT);
         } catch (SocketException e) {
             e.printStackTrace();
             exit(1);
