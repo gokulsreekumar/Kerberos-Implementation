@@ -1,9 +1,12 @@
 package entities;
 
-import Exceptions.NonceDisMatchException;
+import Exceptions.nonceMismatchException;
 import Exceptions.TimestampMismatchException;
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.JsonMappingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.exc.MismatchedInputException;
+import com.fasterxml.jackson.databind.exc.UnrecognizedPropertyException;
 import messageformats.*;
 import messageformats.ImmutableKrbApRep;
 import messageformats.ImmutableKrbApReq;
@@ -41,10 +44,13 @@ public class Client {
     private String loginPassword;
     private ImmutableKrbKdcReq requestToAs;
     private ImmutableKrbKdcRep replyFromAs;
+    private ImmutableKrbError errorReplyFromAs;
     private ImmutableKrbKdcReq requestToTgs;
     private ImmutableKrbKdcRep replyFromTgs;
+    private ImmutableKrbError errorReplyFromTgs;
     private ImmutableKrbApReq requestToAp;
     private ImmutableKrbApRep replyFromAp;
+    private ImmutableKrbError errorReplyFromAp;
     private Ticket ticketGrantingTicket;
     private Ticket serviceGrantingTicket;
     private byte[] sessionKeyWithTgs;
@@ -67,7 +73,7 @@ public class Client {
     This is used for request/response exchange with a server.
     Server can either be KDC or Application Server
     */
-    private void sendRequestToServerAndReceiveResponse(int serverPort, ServerType serverType) {
+    private int sendRequestToServerAndReceiveResponse(int serverPort, ServerType serverType) {
         try {
             /*
              * Instantiate client socket.
@@ -79,22 +85,44 @@ public class Client {
             InetAddress IPAddress = InetAddress.getByName("localhost");
 
             /* Serialization of object into json string */
+            int applicationNumber = 0;
             String requestJsonString = null;
             ObjectMapper objectMapper = new ObjectMapper();
             switch (serverType) {
                 case AS:
+                    applicationNumber = AS_REQUEST_MESSSAGE_TYPE;
                     requestJsonString = objectMapper.writeValueAsString(requestToAs);
+                    System.out.println("AS Request constructed:\n" + requestToAs.toString());
+                    System.out.println("Sending Request to Authentication Server...");
                     break;
                 case TGS:
+                    applicationNumber = TGS_REQUEST_MESSSAGE_TYPE;
                     requestJsonString = objectMapper.writeValueAsString(requestToTgs);
+                    System.out.println("TGS Request constructed:\n" + requestToTgs.toString());
+                    System.out.println("Sending Request to Ticket-Granting Server...");
                     break;
                 case AP:
+                    applicationNumber = AP_REQUEST_MESSAGE_TYPE;
                     requestJsonString = objectMapper.writeValueAsString(requestToAp);
+                    System.out.println("AP Request constructed:\n" + requestToAp.toString());
+                    System.out.println("Sending Request to Application Server...");
                     break;
             }
 
+            System.out.println();
             /* Convert string to byte array */
-            byte[] data = requestJsonString.getBytes();
+            byte[] requestData = requestJsonString.getBytes(StandardCharsets.UTF_8);
+
+            /* Enclose this message bodu inside the KrbMessage */
+            ImmutableKrbMessage krbMessageRequest = ImmutableKrbMessage.builder()
+                    .applicationNumber(applicationNumber)
+                    .krbMessageBody(requestData)
+                    .build();
+
+            String krbMessageJsonString = objectMapper.writeValueAsString(krbMessageRequest);
+
+            /* Convert string to byte array */
+            byte[] data = krbMessageJsonString.getBytes(StandardCharsets.UTF_8);
 
             /* Creating a UDP packet */
             DatagramPacket sendingPacket = new DatagramPacket(data, data.length, IPAddress, serverPort);
@@ -108,29 +136,63 @@ public class Client {
             DatagramPacket receivingPacket = new DatagramPacket(receivingDataBuffer, receivingDataBuffer.length);
             clientSocket.receive(receivingPacket);
 
-            byte[] dataReceived = receivingPacket.getData();
-            String dataString = new String(dataReceived);
+            byte[] krbMessageReceivedData = receivingPacket.getData();
+            String krbMessageReceivedString = new String(krbMessageReceivedData, StandardCharsets.UTF_8);
 
-            /* Deserialization of json string to object */
-            switch (serverType) {
-                case AS:
-                    replyFromAs = objectMapper.readValue(dataString, ImmutableKrbKdcRep.class);
-                    break;
-                case TGS:
-                    replyFromTgs = objectMapper.readValue(dataString, ImmutableKrbKdcRep.class);
-                    break;
-                case AP:
-                    replyFromAp = objectMapper.readValue(dataString, ImmutableKrbApRep.class);
-                    break;
+            /* Deserialization of json string to object (KrbMessage) */
+            KrbMessage krbMessageReceived = objectMapper.readValue(krbMessageReceivedString, KrbMessage.class);
+
+            if (krbMessageReceived.applicationNumber() == KRB_ERROR_MESSAGE_TYPE) {
+                // Error
+                switch (serverType) {
+                    case AS:
+                        errorReplyFromAs = objectMapper.readValue(krbMessageReceived.krbMessageBody(),
+                                ImmutableKrbError.class);
+                        break;
+                    case TGS:
+                        errorReplyFromTgs = objectMapper.readValue(krbMessageReceived.krbMessageBody(),
+                                ImmutableKrbError.class);
+                        break;
+                    case AP:
+                        errorReplyFromAp = objectMapper.readValue(krbMessageReceived.krbMessageBody(),
+                                ImmutableKrbError.class);
+                        break;
+                }
+                System.out.println();
+                return KRB_ERROR_MESSAGE_TYPE;
+
+            } else {
+                /* Deserialization of json string to object */
+                switch (serverType) {
+                    case AS:
+                        replyFromAs = objectMapper.readValue(krbMessageReceived.krbMessageBody(),
+                                ImmutableKrbKdcRep.class);
+                        System.out.println("Received Reply from Authentication Server:\n" + replyFromAs.toString());
+                        break;
+                    case TGS:
+                        replyFromTgs = objectMapper.readValue(krbMessageReceived.krbMessageBody(),
+                                ImmutableKrbKdcRep.class);
+                        System.out.println("Received Reply from Ticket-Granting Server:\n" + replyFromTgs.toString());
+                        break;
+                    case AP:
+                        replyFromAp = objectMapper.readValue(krbMessageReceived.krbMessageBody(),
+                                ImmutableKrbApRep.class);
+                        System.out.println("Received Reply from Application Server:\n" + replyFromAp.toString());
+
+                        break;
+                }
+
+                // Closing the socket connection with the server
+                clientSocket.close();
+                return SUCCESS;
             }
 
-//            System.out.println(replyFromAs.toString());
 
-            // Closing the socket connection with the server
-            clientSocket.close();
         } catch (Exception e) {
             e.printStackTrace();
         }
+
+        return SUCCESS;
     }
 
     private void constructAuthenticationServerRequest() {
@@ -159,9 +221,9 @@ public class Client {
                     new String(replyFromAs.encPart().getCipher(), StandardCharsets.UTF_8),
                     replyFromAs.paData()[0].getPadataValue(),
                     replyFromAs.paData()[1].getPadataValue());
-            System.out.println("ciphertext"+new String(replyFromAs.encPart().getCipher(), StandardCharsets.UTF_8));
+//            System.out.println("ciphertext"+new String(replyFromAs.encPart().getCipher(), StandardCharsets.UTF_8));
             String plainText = PrivateKeyEncryptor.getDecryptionUsingPassword(encryptionData, loginPassword);
-            System.out.println(plainText);
+//            System.out.println(plainText);
 
             /* Create EncKdcRepPart object from the json string obtained after decryption  */
             ObjectMapper objectMapper = new ObjectMapper();
@@ -175,11 +237,14 @@ public class Client {
 
             /* If nonces sent and received don't match, exit) */
             if (nonceROneReceivedInReply != nonceROne) {
-                throw new NonceDisMatchException("Nonce sent to AS and received from AS don't match! \n " +
+                throw new nonceMismatchException("Nonce sent to AS and received from AS don't match! \n " +
                         "This usually happens when an imposter is trying to impersonate AS.");
             }
 
-        } catch (NonceDisMatchException e) {
+        } catch (nonceMismatchException e) {
+            exit(1);
+        }  catch (BadPaddingException | JsonMappingException | InvalidKeyException exceptions) {
+            System.out.println("Decryption Failure: Bad Key Error");
             exit(1);
         } catch (Exception e) {
             e.printStackTrace();
@@ -272,9 +337,9 @@ public class Client {
                     new String(replyFromTgs.encPart().getCipher(), StandardCharsets.UTF_8),
                     null,
                     replyFromTgs.encPart().getIv());
-            System.out.println("ciphertext"+new String(replyFromTgs.encPart().getCipher(), StandardCharsets.UTF_8));
+//            System.out.println("ciphertext"+new String(replyFromTgs.encPart().getCipher(), StandardCharsets.UTF_8));
             String plainText = PrivateKeyEncryptor.getDecryptionUsingSecretKey(encryptionData, sessionKeyWithTgs);
-            System.out.println(plainText);
+//            System.out.println(plainText);
 
             /* Create EncKdcRepPart object from the json string obtained after decryption  */
             ObjectMapper objectMapper = new ObjectMapper();
@@ -288,11 +353,14 @@ public class Client {
 
             /* If nonces sent and received don't match, exit) */
             if (nonceRTwoReceivedInReply != nonceRTwo) {
-                throw new NonceDisMatchException("Nonce sent to TGS and received from TGS don't match! \n " +
+                throw new nonceMismatchException("Nonce sent to TGS and received from TGS don't match! \n " +
                         "This usually happens when an imposter is trying to impersonate TGS.");
             }
 
-        } catch (NonceDisMatchException e) {
+        } catch (BadPaddingException | JsonMappingException | InvalidKeyException exceptions) {
+            System.out.println("Decryption Failure: Bad Key Error");
+            exit(1);
+        } catch (nonceMismatchException e) {
             exit(1);
         } catch (Exception e) {
             e.printStackTrace();
@@ -343,9 +411,9 @@ public class Client {
                 new String(replyFromAp.encPart().getCipher(), StandardCharsets.UTF_8),
                 null,
                 replyFromAp.encPart().getIv());
-        System.out.println("ciphertext_replyFromAp"+new String(replyFromAp.encPart().getCipher(), StandardCharsets.UTF_8));
+//        System.out.println("ciphertext_replyFromAp"+new String(replyFromAp.encPart().getCipher(), StandardCharsets.UTF_8));
         String plainText = PrivateKeyEncryptor.getDecryptionUsingSecretKey(encryptionData, sessionKeyWithServiceServer);
-        System.out.println(plainText);
+//        System.out.println(plainText);
 
         /* See if the Timestamp sent in AP Request is same as the Timestamp present in AP Response */
         ObjectMapper objectMapper = new ObjectMapper();
@@ -357,6 +425,16 @@ public class Client {
         } else {
             throw new TimestampMismatchException("Timestamp received from AP Reply is mismatched from AP Request timestamp");
         }
+    }
+
+    private void printKerberosErrorMessageFromAs() {
+        System.out.println("Kerberos Authentication Failed!");
+        System.out.println("Error Code " + errorReplyFromAs.errorCode() + ": " + errorReplyFromAs.eText());
+    }
+
+    private void printKerberosErrorMessageFromTgs() {
+        System.out.println("Kerberos Authentication Failed!");
+        System.out.println("Error Code " + errorReplyFromAs.errorCode() + ": " + errorReplyFromTgs.eText());
     }
 
     public static void main(String[] args) throws InvalidAlgorithmParameterException, NoSuchPaddingException, IllegalBlockSizeException, NoSuchAlgorithmException, InvalidKeySpecException, BadPaddingException, InvalidKeyException, JsonProcessingException, TimestampMismatchException {
@@ -373,11 +451,17 @@ public class Client {
 
         /* AS Exchange */
         client.constructAuthenticationServerRequest();
-        client.sendRequestToServerAndReceiveResponse(KDC_SERVICE_PORT, ServerType.AS);
+        int ret = client.sendRequestToServerAndReceiveResponse(KDC_SERVICE_PORT, ServerType.AS);
+        if (ret == KRB_ERROR_MESSAGE_TYPE) {
+            client.printKerberosErrorMessageFromAs();
+            exit(1);
+        }
         /* TODO: check if user is successfully authenticated */
         client.handleAsReply();
 
-        System.out.println("Authentication Successful!");
+        System.out.println();
+        System.out.println("Completed AS Exchange -> Obtained Ticket Granting Ticket!");
+        System.out.println();
 
         System.out.println("Please enter the kerberos id of the service you would like to access");
         System.out.print("service kerberos id: ");
@@ -385,13 +469,25 @@ public class Client {
 
         /* TGS Exchange */
         client.constructTicketGrantingServerRequest(client.applicationServerKerberosId);
-        client.sendRequestToServerAndReceiveResponse(KDC_SERVICE_PORT, ServerType.TGS);
+        ret = client.sendRequestToServerAndReceiveResponse(KDC_SERVICE_PORT, ServerType.TGS);
+        if (ret == KRB_ERROR_MESSAGE_TYPE) {
+            client.printKerberosErrorMessageFromTgs();
+            exit(1);
+        }
         client.handleTgsReply();
+
+        System.out.println();
+        System.out.println("Completed TGS Exchange -> Obtained Service Granting Ticket!");
+        System.out.println();
 
         /* AP Exchange */
         client.constructApplicationServerRequest();
         client.sendRequestToServerAndReceiveResponse(AP_SERVICE_PORT, ServerType.AP);
         client.handleApReply();
+
+        System.out.println();
+        System.out.println("Successfully authenticated to Service Server!");
+        System.out.println();
 
     }
 }

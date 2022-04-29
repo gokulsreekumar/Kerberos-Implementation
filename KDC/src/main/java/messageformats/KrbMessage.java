@@ -6,11 +6,11 @@ import org.immutables.value.Value;
 
 @Value.Immutable
 @Value.Style(privateNoargConstructor = true)
-@JsonSerialize(as = ImmutableKrbApReq.class)
-@JsonDeserialize(as = ImmutableKrbApReq.class)
-public interface KrbApReq {
-    int pvno();
-    int msgType();
-    Ticket ticket();
-    EncryptedData authenticator();
+@JsonSerialize(as = ImmutableKrbMessage.class)
+@JsonDeserialize(as = ImmutableKrbMessage.class)
+public interface KrbMessage {
+    // Message Header
+    int applicationNumber();
+    // Message Body
+    byte[] krbMessageBody();
 }
