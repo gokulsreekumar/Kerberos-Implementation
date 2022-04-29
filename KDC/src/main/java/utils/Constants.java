@@ -43,6 +43,7 @@ public class Constants {
 
     // Kerberos Error Codes
     public static final int KDC_ERR_C_PRINCIPAL_UNKNOWN = 6;
+    public static final int KDC_ERR_S_PRINCIPAL_UNKNOWN  =  7;   //Server not found in Kerberos database
     public static final int KRB_AP_ERR_SKEW = 10;
     public static final int KRB_AP_ERR_BADMATCH = 36;
 

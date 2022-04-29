@@ -37,8 +37,8 @@ public class Client {
     /* The server port to which
     the client socket is going to connect */
     public final static int KDC_SERVICE_PORT = 50001;
-    public final static int AP_SERVICE_PORT = 50002;
     public final static int FTP_SERVER_PORT = 50002;
+    public final static int WEB_SERVER_PORT = 50003;
     public static final PrincipalName client = new PrincipalName("client" + new Random().nextInt(100));
     private PrincipalName clientKerberosId;
     private String applicationServerKerberosId;
@@ -63,7 +63,7 @@ public class Client {
     private Timestamp ticketGrantingServerRequestTime;
     private Timestamp applicationServerRequestTime;
 
-    public final static String absolutePath =  "/Users/gokul/Developer/Kerberos-Implementation/Client/src/main/java/entities/";
+    public final static String absolutePath =  "/Users/jessiyajoy/Developer/Kerberos-Implementation/Client/src/main/java/entities/";
 
 //    private PaData derEncodingOfApReqForTgsRequest;
 
@@ -437,10 +437,10 @@ public class Client {
 
     private void printKerberosErrorMessageFromTgs() {
         System.out.println("Kerberos Authentication Failed!");
-        System.out.println("Error Code " + errorReplyFromAs.errorCode() + ": " + errorReplyFromTgs.eText());
+        System.out.println("Error Code " + errorReplyFromTgs.errorCode() + ": " + errorReplyFromTgs.eText());
     }
 
-    private void sendFileRequestAndReceiveFile(String fileName) {
+    private void sendFileRequestAndReceiveFile(String fileName, int apServerPort) {
         // Start Connection
         // Write an object mapper -> JSON
         // JSON -> Bytes
@@ -468,7 +468,7 @@ public class Client {
             InetAddress IPAddress = InetAddress.getByName("localhost");
 
             /* Creating a UDP packet */
-            DatagramPacket sendingPacket = new DatagramPacket(requestData, requestData.length, IPAddress, FTP_SERVER_PORT);
+            DatagramPacket sendingPacket = new DatagramPacket(requestData, requestData.length, IPAddress, apServerPort);
 
             /*
              * Instantiate client socket.
@@ -500,17 +500,28 @@ public class Client {
 
             clientSocket.close();
 
-            if(plainText.equals(""))
-            {
-                System.out.println("Requested File Not Found");
-            }
-            else
-            {
-                FileOutputStream fos = new FileOutputStream(absolutePath + fileName);
-                fos.write(plainText.getBytes());
-                fos.close();
+            if (apServerPort == WEB_SERVER_PORT) {
+                if(plainText.equals(""))
+                {
+                    System.out.println("Requested Url Not Found");
+                }
+                else
+                {
+                    System.out.println(plainText);
+                }
+            } else if (apServerPort == FTP_SERVER_PORT) {
+                if(plainText.equals(""))
+                {
+                    System.out.println("Requested File Not Found");
+                }
+                else
+                {
+                    FileOutputStream fos = new FileOutputStream(absolutePath + fileName);
+                    fos.write(plainText.getBytes());
+                    fos.close();
 
-                System.out.println("File successfully downloaded!");
+                    System.out.println("File successfully downloaded!");
+                }
             }
 
         } catch (Exception e) {
@@ -563,19 +574,37 @@ public class Client {
         System.out.println("Completed TGS Exchange -> Obtained Service Granting Ticket!");
         System.out.println();
 
-        /* AP Exchange */
-        client.constructApplicationServerRequest();
-        client.sendRequestToServerAndReceiveResponse(AP_SERVICE_PORT, ServerType.AP);
-        client.handleApReply();
+        if (client.applicationServerKerberosId.equals("FTP")) {
+            /* AP Exchange */
+            client.constructApplicationServerRequest();
+            client.sendRequestToServerAndReceiveResponse(FTP_SERVER_PORT, ServerType.AP);
+            client.handleApReply();
 
-        System.out.println();
-        System.out.println("Successfully authenticated to Service Server!");
-        System.out.println();
+            System.out.println();
+            System.out.println("Successfully authenticated to Service Server!");
+            System.out.println();
 
-        System.out.println("----- WELCOME TO FTP SERVER -----");
-        System.out.println("Enter the name of file to fetch:");
+            System.out.println("----- WELCOME TO FTP SERVER -----");
+            System.out.println("Enter the name of file to fetch:");
 
-        String fileName = scanner.nextLine();
-        client.sendFileRequestAndReceiveFile(fileName);
+            String fileName = scanner.nextLine();
+            client.sendFileRequestAndReceiveFile(fileName, FTP_SERVER_PORT);
+        } else if (client.applicationServerKerberosId.equals("WEB")) {
+            /* AP Exchange */
+            client.constructApplicationServerRequest();
+            client.sendRequestToServerAndReceiveResponse(WEB_SERVER_PORT, ServerType.AP);
+            client.handleApReply();
+
+            System.out.println();
+            System.out.println("Successfully authenticated to Service Server!");
+            System.out.println();
+
+            System.out.println("----- WELCOME TO WEB SERVER -----");
+            System.out.println("Enter the URL to fetch:");
+
+            String fileName = scanner.nextLine();
+            client.sendFileRequestAndReceiveFile(fileName, WEB_SERVER_PORT);
+        }
+
     }
 }

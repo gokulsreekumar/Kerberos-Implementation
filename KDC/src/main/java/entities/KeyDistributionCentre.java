@@ -35,6 +35,7 @@ import java.security.NoSuchAlgorithmException;
 import java.security.spec.InvalidKeySpecException;
 import java.sql.Timestamp;
 import java.util.ArrayList;
+import java.util.HashMap;
 
 import static java.lang.System.exit;
 import static utils.Constants.*;
@@ -53,11 +54,19 @@ public class KeyDistributionCentre {
     private KrbKdcRep tgsReplyForClient;
     private KrbError tgsErrorReplyForClient;
     private final static byte[] tgsSecretKey = "abcdefghijklmnopqrstuvwxyz123456".getBytes(StandardCharsets.UTF_8);
-    private final static byte[] apSecretKey = "abcdefghijklmnopqrstuvwxyz123456".getBytes(StandardCharsets.UTF_8);
+    private final static byte[] ftpSecretKey = "FTP_abcdefghijklmnopqrstuvwxyz12".getBytes(StandardCharsets.UTF_8);
+    private final static byte[] webSecretKey = "WEB_abcdefghijklmnopqrstuvwxyz12".getBytes(StandardCharsets.UTF_8);
+    private byte[] secretKeyOfAppServer;
     private byte[] sessionKeyForTgs;
     private DatagramSocket serverSocket;
+    private static HashMap<String, byte[]> serverIdSecretKeyMap = new HashMap<>();
 
     public static void main(String[] args) {
+        /* Generating Session Key for Client - AP Server Communication */
+
+        serverIdSecretKeyMap.put("FTP", ftpSecretKey);
+        serverIdSecretKeyMap.put("WEB", webSecretKey);
+
         KeyDistributionCentre keyDistributionCentre = new KeyDistributionCentre();
         try {
             /* Instantiate a new DatagramSocket to receive responses from the client */
@@ -143,11 +152,20 @@ public class KeyDistributionCentre {
                             constructTgsErrorMessageReplyForClient(ret);
                             replyForClientJsonString = objectMapper.writeValueAsString(tgsErrorReplyForClient);
                         } else {
-                            applicationNumber = TGS_REQUEST_MESSSAGE_TYPE;
-                            constructTgsReplyForClient();
-                            /* Serialization of reply object into json string */
-                            replyForClientJsonString = objectMapper.writeValueAsString(tgsReplyForClient);
-                            System.out.println("Sent TGS Reply to client: \n"+ tgsReplyForClient.toString());
+                            int retVal = fetchSecretKeyOfApplicationServer();
+
+                            if (retVal != SUCCESS) {
+                                // User does not exist
+                                applicationNumber = KRB_ERROR_MESSAGE_TYPE;
+                                constructTgsErrorMessageReplyForClient(retVal);
+                                replyForClientJsonString = objectMapper.writeValueAsString(tgsErrorReplyForClient);
+                            } else {
+                                applicationNumber = TGS_REQUEST_MESSSAGE_TYPE;
+                                constructTgsReplyForClient();
+                                /* Serialization of reply object into json string */
+                                replyForClientJsonString = objectMapper.writeValueAsString(tgsReplyForClient);
+                                System.out.println("Sent TGS Reply to client: \n"+ tgsReplyForClient.toString());
+                            }
                         }
 
                         break;
@@ -271,6 +289,8 @@ public class KeyDistributionCentre {
             eText = "Clock skew too great - Timestamp is not recent";
         } else if (ret == KRB_AP_ERR_BADMATCH) {
             eText = "Ticket and authenticator don’t match";
+        } else if (ret == KDC_ERR_S_PRINCIPAL_UNKNOWN) {
+            eText = "Server not found in Kerberos database";
         }
         tgsErrorReplyForClient = ImmutableKrbError.builder()
                 .pvno(KERBEROS_VERSION_NUMBER)
@@ -393,14 +413,15 @@ public class KeyDistributionCentre {
     }
 
     public void constructTgsReplyForClient() throws NoSuchAlgorithmException, JsonProcessingException, InvalidAlgorithmParameterException, NoSuchPaddingException, IllegalBlockSizeException, InvalidKeySpecException, BadPaddingException, InvalidKeyException {
+
+        PrincipalName applicationServerPrincipalName = clientTgsRequest.reqBody().getSname();
+
         /*
          Mainly two Parts in Tgs Reply: ticket and encPart
             - ticket: Service Granting Ticket(SGT) for client to present to Ap Server
                 (uses AP's Private Key for its Encrypted Part)
             - encPart:
         */
-
-        PrincipalName applicationServerPrincipalName = clientTgsRequest.reqBody().getSname();
 
         Timestamp authTime = new Timestamp(System.currentTimeMillis());
 
@@ -437,7 +458,7 @@ public class KeyDistributionCentre {
         String jsonEncTicketPart = objectMapper.writeValueAsString(encTicketPart);
         EncryptionData encryptionDataForTicket = PrivateKeyEncryptor.getEncryptionUsingSecretKey(
                 jsonEncTicketPart,
-                apSecretKey);
+                secretKeyOfAppServer);
         /* Creating Ticket object */
         Ticket ticket = new Ticket(
                 TICKET_VERSION_NUMBER,
@@ -465,5 +486,18 @@ public class KeyDistributionCentre {
                 .build();
 
 //        System.out.println("ciphertext"+encryptionDataForEncKdcRep.getCipherText());
+    }
+
+    private int fetchSecretKeyOfApplicationServer() {
+        PrincipalName applicationServerPrincipalName = clientTgsRequest.reqBody().getSname();
+        System.out.println("Application Server Kerberos ID:" + applicationServerPrincipalName.getNameString());
+
+        // GET SECRET KEY OF SERVICE SERVER
+        if (serverIdSecretKeyMap.containsKey(applicationServerPrincipalName.getNameString())) {
+            secretKeyOfAppServer = serverIdSecretKeyMap.get(applicationServerPrincipalName.getNameString());
+            return SUCCESS;
+        } else {
+            return KDC_ERR_S_PRINCIPAL_UNKNOWN;
+        }
     }
 }

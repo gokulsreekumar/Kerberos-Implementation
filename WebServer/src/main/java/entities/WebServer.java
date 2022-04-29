@@ -29,9 +29,9 @@ import static utils.Constants.*;
 import static utils.Constants.KRB_ERROR_MESSAGE_TYPE;
 import static utils.Helpers.addMinutes;
 
-public class ApplicationServer {
-    public final static int FTP_SERVER_PORT = 50002;
-    private final static byte[] ftpSecretKey = "FTP_abcdefghijklmnopqrstuvwxyz12".getBytes(StandardCharsets.UTF_8);
+public class WebServer {
+    public final static int WEB_SERVER_PORT = 50003;
+    private final static byte[] webSecretKey = "WEB_abcdefghijklmnopqrstuvwxyz12".getBytes(StandardCharsets.UTF_8);
 
     private DatagramSocket serverSocket;
     private KrbApReq clientRequest;
@@ -39,7 +39,7 @@ public class ApplicationServer {
     private KrbError errorReplyForClient;
     private byte[] sessionKey;
 
-    public final static String absolutePath =  "/Users/jessiyajoy/Developer/Kerberos-Implementation/ApplicationServer/src/main/java/entities/";
+    public final static String absolutePath =  "/Users/jessiyajoy/Developer/Kerberos-Implementation/WebServer/src/main/java/entities/";
 
 
     public void receiveClientRequestAndReply() {
@@ -283,7 +283,7 @@ public class ApplicationServer {
                 encryptedDataForTicket.getIv()
         );
         String plainTextForTicket = PrivateKeyEncryptor.getDecryptionUsingSecretKey(
-                encryptionDataForTicket, ftpSecretKey);
+                encryptionDataForTicket, webSecretKey);
         EncTicketPart unencryptedTicket = objectMapper.readValue(
                 plainTextForTicket, EncTicketPart.class);
         sessionKey = unencryptedTicket.getKey().getKeyValue();
@@ -309,16 +309,16 @@ public class ApplicationServer {
     }
 
     public static void main(String[] args) throws IOException {
-        ApplicationServer applicationServer = new ApplicationServer();
+        WebServer webServer = new WebServer();
         try {
             /* Instantiate a new DatagramSocket to receive responses from the client */
-            applicationServer.serverSocket = new DatagramSocket(FTP_SERVER_PORT);
+            webServer.serverSocket = new DatagramSocket(WEB_SERVER_PORT);
         } catch (SocketException e) {
             e.printStackTrace();
             exit(1);
         }
         while (true) {
-            applicationServer.receiveClientRequestAndReply();
+            webServer.receiveClientRequestAndReply();
         }
     }
 }
