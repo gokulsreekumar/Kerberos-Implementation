@@ -16,6 +16,8 @@ import utils.PrivateKeyEncryptor;
 import javax.crypto.BadPaddingException;
 import javax.crypto.IllegalBlockSizeException;
 import javax.crypto.NoSuchPaddingException;
+import java.io.FileOutputStream;
+import java.io.IOException;
 import java.net.*;
 import java.nio.charset.StandardCharsets;
 import java.security.InvalidAlgorithmParameterException;
@@ -60,6 +62,8 @@ public class Client {
     private Timestamp authenticationServerRequestTime;
     private Timestamp ticketGrantingServerRequestTime;
     private Timestamp applicationServerRequestTime;
+
+    public final static String absolutePath =  "/Users/gokul/Developer/Kerberos-Implementation/Client/src/main/java/entities/";
 
 //    private PaData derEncodingOfApReqForTgsRequest;
 
@@ -436,54 +440,87 @@ public class Client {
         System.out.println("Error Code " + errorReplyFromAs.errorCode() + ": " + errorReplyFromTgs.eText());
     }
 
-    private void sendFileRequestAndReceiveFile(String fileName) throws JsonProcessingException, InvalidAlgorithmParameterException, NoSuchPaddingException, IllegalBlockSizeException, NoSuchAlgorithmException, InvalidKeySpecException, BadPaddingException, InvalidKeyException, UnknownHostException {
+    private void sendFileRequestAndReceiveFile(String fileName) {
         // Start Connection
         // Write an object mapper -> JSON
         // JSON -> Bytes
         // Encrypt data bytes
         // Send datagram packet
-        EncryptionData encryptionDataForFileName = PrivateKeyEncryptor.getEncryptionUsingSecretKey(
-                fileName, sessionKeyWithServiceServer);
+        try{
+            EncryptionData encryptionDataForFileName = PrivateKeyEncryptor.getEncryptionUsingSecretKey(
+                    fileName, sessionKeyWithServiceServer);
 
-        EncryptedData encryptedDataForFileName = new EncryptedData(
-                1, 1,
-                encryptionDataForFileName.getIv(),
-                encryptionDataForFileName.getCipherText().getBytes(StandardCharsets.UTF_8));
+            EncryptedData encryptedDataForFileName = new EncryptedData(
+                    1, 1,
+                    encryptionDataForFileName.getIv(),
+                    encryptionDataForFileName.getCipherText().getBytes(StandardCharsets.UTF_8));
 
-        FileRequest fileRequest = new FileRequest(encryptedDataForFileName);
+            FileRequest fileRequest = new FileRequest(encryptedDataForFileName);
 
-        // Send the file request
-        ObjectMapper objectMapper = new ObjectMapper();
-        String jsonForFileRequest = objectMapper.writeValueAsString(fileRequest);
+            // Send the file request
+            ObjectMapper objectMapper = new ObjectMapper();
+            String jsonForFileRequest = objectMapper.writeValueAsString(fileRequest);
 
-        /* Convert string to byte array */
-        byte[] requestData = jsonForFileRequest.getBytes(StandardCharsets.UTF_8);
+            /* Convert string to byte array */
+            byte[] requestData = jsonForFileRequest.getBytes(StandardCharsets.UTF_8);
 
-        /* Get the IP address of the server */
-        InetAddress IPAddress = InetAddress.getByName("localhost");
+            /* Get the IP address of the server */
+            InetAddress IPAddress = InetAddress.getByName("localhost");
 
-        /* Creating a UDP packet */
-        DatagramPacket sendingPacket = new DatagramPacket(requestData, requestData.length, IPAddress, FTP_SERVER_PORT);
+            /* Creating a UDP packet */
+            DatagramPacket sendingPacket = new DatagramPacket(requestData, requestData.length, IPAddress, FTP_SERVER_PORT);
 
-        // sending UDP packet to the server
-        clientSocket.send(sendingPacket);
+            /*
+             * Instantiate client socket.
+             * No need to bind to a specific port
+             */
+            DatagramSocket clientSocket = new DatagramSocket();
 
-        byte[] receivingDataBuffer = new byte[10000];
+            // sending UDP packet to the server
+            clientSocket.send(sendingPacket);
 
-        // Get the server response
-        DatagramPacket receivingPacket = new DatagramPacket(receivingDataBuffer, receivingDataBuffer.length);
-        clientSocket.receive(receivingPacket);
+            byte[] receivingDataBuffer = new byte[10000];
 
-        byte[] fileResponseBytes = receivingPacket.getData();
-        String fileResponseString = new String(fileResponseBytes, StandardCharsets.UTF_8);
+            // Get the server response
+            DatagramPacket receivingPacket = new DatagramPacket(receivingDataBuffer, receivingDataBuffer.length);
+            clientSocket.receive(receivingPacket);
 
-        /* Deserialization of json string to object (KrbMessage) */
-        FileReply fileReply = objectMapper.readValue(fileResponseString, FileReply.class);
+            byte[] fileResponseBytes = receivingPacket.getData();
+            String fileResponseString = new String(fileResponseBytes, StandardCharsets.UTF_8);
+
+            /* Deserialization of json string to object */
+            FileReply fileReply = objectMapper.readValue(fileResponseString, FileReply.class);
+
+            EncryptionData encryptionData = new EncryptionData(
+                    new String(fileReply.getFileEncryptedData().getCipher(), StandardCharsets.UTF_8),
+                    null,
+                    fileReply.getFileEncryptedData().getIv());
+
+            String plainText = PrivateKeyEncryptor.getDecryptionUsingSecretKey(encryptionData, sessionKeyWithServiceServer);
+
+            clientSocket.close();
+
+            if(plainText.equals(""))
+            {
+                System.out.println("Requested File Not Found");
+            }
+            else
+            {
+                FileOutputStream fos = new FileOutputStream(absolutePath + fileName);
+                fos.write(plainText.getBytes());
+                fos.close();
+
+                System.out.println("File successfully downloaded!");
+            }
+
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
 
 
     }
 
-    public static void main(String[] args) throws InvalidAlgorithmParameterException, NoSuchPaddingException, IllegalBlockSizeException, NoSuchAlgorithmException, InvalidKeySpecException, BadPaddingException, InvalidKeyException, JsonProcessingException, TimestampMismatchException {
+    public static void main(String[] args) throws InvalidAlgorithmParameterException, NoSuchPaddingException, IllegalBlockSizeException, NoSuchAlgorithmException, InvalidKeySpecException, BadPaddingException, InvalidKeyException, JsonProcessingException, TimestampMismatchException, UnknownHostException {
         System.out.println("WELCOME TO KERBEROS AUTHENTICATION SYSTEM!");
         System.out.println("Please enter your kerberos id and password to get started");
         Scanner scanner = new Scanner(System.in);

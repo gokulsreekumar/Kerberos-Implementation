@@ -7,9 +7,13 @@ import messageformats.*;
 import utils.EncryptionData;
 import utils.PrivateKeyEncryptor;
 
+
 import javax.crypto.BadPaddingException;
 import javax.crypto.IllegalBlockSizeException;
 import javax.crypto.NoSuchPaddingException;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.IOException;
 import java.net.DatagramPacket;
 import java.net.DatagramSocket;
 import java.net.InetAddress;
@@ -34,6 +38,9 @@ public class ApplicationServer {
     private KrbApRep replyForClient;
     private KrbError errorReplyForClient;
     private byte[] sessionKey;
+
+    public final static String absolutePath =  "/Users/gokul/Developer/Kerberos-Implementation/ApplicationServer/src/main/java/entities/";
+
 
     public void receiveClientRequestAndReply() {
         try {
@@ -88,7 +95,7 @@ public class ApplicationServer {
                 }
 
                 /* Convert string to byte array */
-                byte[] requestData = replyForClientJsonString.getBytes();
+                byte[] requestData = replyForClientJsonString.getBytes(StandardCharsets.UTF_8);
 
                 ImmutableKrbMessage krbMessageReply = ImmutableKrbMessage.builder()
                         .applicationNumber(applicationNumber)
@@ -106,6 +113,78 @@ public class ApplicationServer {
                 serverSocket.send(replyPacket);
                 System.out.println("Sent AP Reply to client: \n"+ replyForClient.toString());
                 System.out.println();
+
+                /* Receive Request and Reply with file */
+                /*
+                 * Instantiate a UDP packet to store the client data using the buffer for receiving data
+                 */
+                receivingDataBuffer = new byte[10000];
+
+                System.out.println("Waiting for client's file request...\n");
+
+                /* Receive data from the client and store in inputPacket */
+                inputPacket = new DatagramPacket(receivingDataBuffer, receivingDataBuffer.length);
+                serverSocket.receive(inputPacket);
+
+                /* get the data bytes from inputPacket and convert byte array to json string */
+                dataReceived = inputPacket.getData();
+                dataString = new String(dataReceived);
+
+                /* Deserialization of json string to object (KrbMessage) */
+                FileRequest fileRequest = objectMapper.readValue(dataString, FileRequest.class);
+
+                // Decrypt the file request
+                EncryptionData encryptionData = new EncryptionData(
+                        new String(fileRequest.getEncryptedFileName().getCipher(), StandardCharsets.UTF_8),
+                        null,
+                        fileRequest.getEncryptedFileName().getIv());
+
+                String fileName = PrivateKeyEncryptor.getDecryptionUsingSecretKey(encryptionData, sessionKey);
+                System.out.println("Filename is "+ fileName);
+
+                fileName = absolutePath + fileName;
+
+                File file = new File(fileName);
+                if(file.isFile())
+                {
+                    FileInputStream fis = new FileInputStream(file);
+                    data = new byte[fis.available()];
+                    fis.read(data);
+                    fis.close();
+                    String fileData = new String(data);
+
+                    // Send the fileData, create reply object
+                    EncryptionData encryptionDataForFileData = PrivateKeyEncryptor.getEncryptionUsingSecretKey(
+                            fileData, sessionKey);
+
+                    EncryptedData encryptedDataForFileData = new EncryptedData(
+                            1, 1,
+                            encryptionDataForFileData.getIv(),
+                            encryptionDataForFileData.getCipherText().getBytes(StandardCharsets.UTF_8));
+
+
+                    FileReply fileReply = new FileReply(encryptedDataForFileData);
+
+                    String fileReplyJson = objectMapper.writeValueAsString(fileReply);
+
+                    /* Convert string to byte array */
+                    requestData = fileReplyJson.getBytes(StandardCharsets.UTF_8);
+
+                    senderAddress = inputPacket.getAddress();
+                    senderPort = inputPacket.getPort();
+
+                    /* Creating a UDP packet */
+                    replyPacket = new DatagramPacket(requestData, requestData.length, senderAddress, senderPort);
+
+                    /* Send the created packet to client */
+                    serverSocket.send(replyPacket);
+
+                    System.out.println("File Send Successful!");
+                }
+                else
+                {
+                    System.out.println("File Not Found!");
+                }
 
             }
 
@@ -229,7 +308,7 @@ public class ApplicationServer {
         return unencryptedAuthenticator;
     }
 
-    public static void main(String[] args) {
+    public static void main(String[] args) throws IOException {
         ApplicationServer applicationServer = new ApplicationServer();
         try {
             /* Instantiate a new DatagramSocket to receive responses from the client */
@@ -242,5 +321,4 @@ public class ApplicationServer {
             applicationServer.receiveClientRequestAndReply();
         }
     }
-
 }
