@@ -5,8 +5,6 @@ import Exceptions.TimestampMismatchException;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonMappingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.exc.MismatchedInputException;
-import com.fasterxml.jackson.databind.exc.UnrecognizedPropertyException;
 import messageformats.*;
 import messageformats.ImmutableKrbApRep;
 import messageformats.ImmutableKrbApReq;
@@ -38,6 +36,7 @@ public class Client {
     the client socket is going to connect */
     public final static int KDC_SERVICE_PORT = 50001;
     public final static int AP_SERVICE_PORT = 50002;
+    public final static int FTP_SERVER_PORT = 50002;
     public static final PrincipalName client = new PrincipalName("client" + new Random().nextInt(100));
     private PrincipalName clientKerberosId;
     private String applicationServerKerberosId;
@@ -437,15 +436,62 @@ public class Client {
         System.out.println("Error Code " + errorReplyFromAs.errorCode() + ": " + errorReplyFromTgs.eText());
     }
 
+    private void sendFileRequestAndReceiveFile(String fileName) throws JsonProcessingException, InvalidAlgorithmParameterException, NoSuchPaddingException, IllegalBlockSizeException, NoSuchAlgorithmException, InvalidKeySpecException, BadPaddingException, InvalidKeyException, UnknownHostException {
+        // Start Connection
+        // Write an object mapper -> JSON
+        // JSON -> Bytes
+        // Encrypt data bytes
+        // Send datagram packet
+        EncryptionData encryptionDataForFileName = PrivateKeyEncryptor.getEncryptionUsingSecretKey(
+                fileName, sessionKeyWithServiceServer);
+
+        EncryptedData encryptedDataForFileName = new EncryptedData(
+                1, 1,
+                encryptionDataForFileName.getIv(),
+                encryptionDataForFileName.getCipherText().getBytes(StandardCharsets.UTF_8));
+
+        FileRequest fileRequest = new FileRequest(encryptedDataForFileName);
+
+        // Send the file request
+        ObjectMapper objectMapper = new ObjectMapper();
+        String jsonForFileRequest = objectMapper.writeValueAsString(fileRequest);
+
+        /* Convert string to byte array */
+        byte[] requestData = jsonForFileRequest.getBytes(StandardCharsets.UTF_8);
+
+        /* Get the IP address of the server */
+        InetAddress IPAddress = InetAddress.getByName("localhost");
+
+        /* Creating a UDP packet */
+        DatagramPacket sendingPacket = new DatagramPacket(requestData, requestData.length, IPAddress, FTP_SERVER_PORT);
+
+        // sending UDP packet to the server
+        clientSocket.send(sendingPacket);
+
+        byte[] receivingDataBuffer = new byte[10000];
+
+        // Get the server response
+        DatagramPacket receivingPacket = new DatagramPacket(receivingDataBuffer, receivingDataBuffer.length);
+        clientSocket.receive(receivingPacket);
+
+        byte[] fileResponseBytes = receivingPacket.getData();
+        String fileResponseString = new String(fileResponseBytes, StandardCharsets.UTF_8);
+
+        /* Deserialization of json string to object (KrbMessage) */
+        FileReply fileReply = objectMapper.readValue(fileResponseString, FileReply.class);
+
+
+    }
+
     public static void main(String[] args) throws InvalidAlgorithmParameterException, NoSuchPaddingException, IllegalBlockSizeException, NoSuchAlgorithmException, InvalidKeySpecException, BadPaddingException, InvalidKeyException, JsonProcessingException, TimestampMismatchException {
         System.out.println("WELCOME TO KERBEROS AUTHENTICATION SYSTEM!");
         System.out.println("Please enter your kerberos id and password to get started");
-        Scanner myObj = new Scanner(System.in);
+        Scanner scanner = new Scanner(System.in);
 
         System.out.print("kerberos id: ");
-        String clientKerberosId = myObj.nextLine();
+        String clientKerberosId = scanner.nextLine();
         System.out.print("password: ");
-        String password = myObj.nextLine();
+        String password = scanner.nextLine();
 
         Client client = new Client(new PrincipalName(clientKerberosId), password);
 
@@ -465,7 +511,7 @@ public class Client {
 
         System.out.println("Please enter the kerberos id of the service you would like to access");
         System.out.print("service kerberos id: ");
-        client.applicationServerKerberosId = myObj.nextLine();
+        client.applicationServerKerberosId = scanner.nextLine();
 
         /* TGS Exchange */
         client.constructTicketGrantingServerRequest(client.applicationServerKerberosId);
@@ -489,5 +535,10 @@ public class Client {
         System.out.println("Successfully authenticated to Service Server!");
         System.out.println();
 
+        System.out.println("----- WELCOME TO FTP SERVER -----");
+        System.out.println("Enter the name of file to fetch:");
+
+        String fileName = scanner.nextLine();
+        client.sendFileRequestAndReceiveFile(fileName);
     }
 }
