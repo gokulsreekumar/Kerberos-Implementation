@@ -92,17 +92,24 @@ public class Client {
                 case AS:
                     applicationNumber = AS_REQUEST_MESSSAGE_TYPE;
                     requestJsonString = objectMapper.writeValueAsString(requestToAs);
+                    System.out.println("AS Request constructed:\n" + requestToAs.toString());
+                    System.out.println("Sending Request to Authentication Server...");
                     break;
                 case TGS:
                     applicationNumber = TGS_REQUEST_MESSSAGE_TYPE;
                     requestJsonString = objectMapper.writeValueAsString(requestToTgs);
+                    System.out.println("TGS Request constructed:\n" + requestToTgs.toString());
+                    System.out.println("Sending Request to Ticket-Granting Server...");
                     break;
                 case AP:
                     applicationNumber = AP_REQUEST_MESSAGE_TYPE;
                     requestJsonString = objectMapper.writeValueAsString(requestToAp);
+                    System.out.println("AP Request constructed:\n" + requestToAp.toString());
+                    System.out.println("Sending Request to Application Server...");
                     break;
             }
 
+            System.out.println();
             /* Convert string to byte array */
             byte[] requestData = requestJsonString.getBytes(StandardCharsets.UTF_8);
 
@@ -160,14 +167,18 @@ public class Client {
                     case AS:
                         replyFromAs = objectMapper.readValue(krbMessageReceived.krbMessageBody(),
                                 ImmutableKrbKdcRep.class);
+                        System.out.println("Received Reply from Authentication Server:\n" + replyFromAs.toString());
                         break;
                     case TGS:
                         replyFromTgs = objectMapper.readValue(krbMessageReceived.krbMessageBody(),
                                 ImmutableKrbKdcRep.class);
+                        System.out.println("Received Reply from Ticket-Granting Server:\n" + replyFromTgs.toString());
                         break;
                     case AP:
                         replyFromAp = objectMapper.readValue(krbMessageReceived.krbMessageBody(),
                                 ImmutableKrbApRep.class);
+                        System.out.println("Received Reply from Application Server:\n" + replyFromAp.toString());
+
                         break;
                 }
 
@@ -210,9 +221,9 @@ public class Client {
                     new String(replyFromAs.encPart().getCipher(), StandardCharsets.UTF_8),
                     replyFromAs.paData()[0].getPadataValue(),
                     replyFromAs.paData()[1].getPadataValue());
-            System.out.println("ciphertext"+new String(replyFromAs.encPart().getCipher(), StandardCharsets.UTF_8));
+//            System.out.println("ciphertext"+new String(replyFromAs.encPart().getCipher(), StandardCharsets.UTF_8));
             String plainText = PrivateKeyEncryptor.getDecryptionUsingPassword(encryptionData, loginPassword);
-            System.out.println(plainText);
+//            System.out.println(plainText);
 
             /* Create EncKdcRepPart object from the json string obtained after decryption  */
             ObjectMapper objectMapper = new ObjectMapper();
@@ -326,9 +337,9 @@ public class Client {
                     new String(replyFromTgs.encPart().getCipher(), StandardCharsets.UTF_8),
                     null,
                     replyFromTgs.encPart().getIv());
-            System.out.println("ciphertext"+new String(replyFromTgs.encPart().getCipher(), StandardCharsets.UTF_8));
+//            System.out.println("ciphertext"+new String(replyFromTgs.encPart().getCipher(), StandardCharsets.UTF_8));
             String plainText = PrivateKeyEncryptor.getDecryptionUsingSecretKey(encryptionData, sessionKeyWithTgs);
-            System.out.println(plainText);
+//            System.out.println(plainText);
 
             /* Create EncKdcRepPart object from the json string obtained after decryption  */
             ObjectMapper objectMapper = new ObjectMapper();
@@ -400,9 +411,9 @@ public class Client {
                 new String(replyFromAp.encPart().getCipher(), StandardCharsets.UTF_8),
                 null,
                 replyFromAp.encPart().getIv());
-        System.out.println("ciphertext_replyFromAp"+new String(replyFromAp.encPart().getCipher(), StandardCharsets.UTF_8));
+//        System.out.println("ciphertext_replyFromAp"+new String(replyFromAp.encPart().getCipher(), StandardCharsets.UTF_8));
         String plainText = PrivateKeyEncryptor.getDecryptionUsingSecretKey(encryptionData, sessionKeyWithServiceServer);
-        System.out.println(plainText);
+//        System.out.println(plainText);
 
         /* See if the Timestamp sent in AP Request is same as the Timestamp present in AP Response */
         ObjectMapper objectMapper = new ObjectMapper();
@@ -448,7 +459,9 @@ public class Client {
         /* TODO: check if user is successfully authenticated */
         client.handleAsReply();
 
-        System.out.println("Authentication Successful!");
+        System.out.println();
+        System.out.println("Completed AS Exchange -> Obtained Ticket Granting Ticket!");
+        System.out.println();
 
         System.out.println("Please enter the kerberos id of the service you would like to access");
         System.out.print("service kerberos id: ");
@@ -463,10 +476,18 @@ public class Client {
         }
         client.handleTgsReply();
 
+        System.out.println();
+        System.out.println("Completed TGS Exchange -> Obtained Service Granting Ticket!");
+        System.out.println();
+
         /* AP Exchange */
         client.constructApplicationServerRequest();
         client.sendRequestToServerAndReceiveResponse(AP_SERVICE_PORT, ServerType.AP);
         client.handleApReply();
+
+        System.out.println();
+        System.out.println("Successfully authenticated to Service Server!");
+        System.out.println();
 
     }
 }

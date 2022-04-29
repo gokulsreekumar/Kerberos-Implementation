@@ -79,7 +79,7 @@ public class KeyDistributionCentre {
              */
             byte[] receivingDataBuffer = new byte[10000];
 
-            System.out.println("Waiting for client request...");
+            System.out.println("Waiting for client request...\n");
 
             /* Receive data from the client and store in inputPacket */
             DatagramPacket inputPacket = new DatagramPacket(receivingDataBuffer, receivingDataBuffer.length);
@@ -92,6 +92,7 @@ public class KeyDistributionCentre {
             ObjectMapper objectMapper = new ObjectMapper();
             /* Deserialization of json string to object (KrbMessage) */
             KrbMessage krbMessageRequest = objectMapper.readValue(dataString, KrbMessage.class);
+
 
             if (krbMessageRequest.applicationNumber() == KRB_ERROR_MESSAGE_TYPE) {
                 // DO WHATEVER NECESSARY
@@ -109,11 +110,12 @@ public class KeyDistributionCentre {
                 switch (clientRequest.msgType()) {
 
                     case AS_REQUEST_MESSSAGE_TYPE:
+                        System.out.println("Received AS Request from client "+clientRequest.reqBody().getCname().getNameString());
                         clientAsRequest = clientRequest;
                         // TODO: Add logic for verification of client's identity and other AS functions
                         loadUserAuthData();
                         String clientPassword = getClientCredentials(clientRequest.reqBody().getCname().getNameString());
-                        System.out.println("The client password is {" + clientPassword + "}");
+//                        System.out.println("The client password is {" + clientPassword + "}");
 
                         if (clientPassword.equals("USER_NOT_FOUND")) {
                             // User does not exist
@@ -125,11 +127,13 @@ public class KeyDistributionCentre {
                             constructAsReplyForClient(clientPassword);
                             /* Serialization of reply object into json string */
                             replyForClientJsonString = objectMapper.writeValueAsString(asReplyForClient);
+                            System.out.println("Sent AS Reply to client: \n"+ asReplyForClient.toString());
                         }
 
                         break;
 
                     case TGS_REQUEST_MESSSAGE_TYPE:
+                        System.out.println("Received TGS Request from client "+clientRequest.reqBody().getCname().getNameString());
                         clientTgsRequest = clientRequest;
                         int ret = doClientAuthenticationFromTgsRequest();
 
@@ -143,10 +147,12 @@ public class KeyDistributionCentre {
                             constructTgsReplyForClient();
                             /* Serialization of reply object into json string */
                             replyForClientJsonString = objectMapper.writeValueAsString(tgsReplyForClient);
+                            System.out.println("Sent TGS Reply to client: \n"+ tgsReplyForClient.toString());
                         }
 
                         break;
                 }
+                System.out.println();
 
                 /* Convert string to byte array */
                 byte[] requestData = replyForClientJsonString.getBytes(StandardCharsets.UTF_8);
@@ -242,7 +248,7 @@ public class KeyDistributionCentre {
                         KERBEROS_VERSION_NUMBER,
                         encryptedEncKdcRepPart.getCipherText().getBytes(StandardCharsets.UTF_8)))
                 .build();
-        System.out.println("ciphertext" + encryptedEncKdcRepPart.getCipherText());
+//        System.out.println("ciphertext" + encryptedEncKdcRepPart.getCipherText());
     }
 
     private void constructAsErrorMessageReplyForClient() {
@@ -311,11 +317,11 @@ public class KeyDistributionCentre {
     }
 
     public String getClientCredentials(String clientUserid) {
-        System.out.println("Client User Id = " + clientUserid);
+//        System.out.println("Client User Id = " + clientUserid);
         for (UserAuthData user : userAuthDatabase) {
-            System.out.println("USER = " + user.getUserid());
+//            System.out.println("USER = " + user.getUserid());
             if (clientUserid.equals(user.getUserid())) {
-                System.out.println("Im here");
+//                System.out.println("Im here");
                 return user.getPassword();
             }
         }
@@ -330,7 +336,7 @@ public class KeyDistributionCentre {
             ObjectMapper objectMapper = new ObjectMapper();
             KrbApReq apReqInTgsRequest = objectMapper.readValue(apReqJson, KrbApReq.class);
 
-            System.out.println("appp"+apReqInTgsRequest.toString());
+//            System.out.println("appp"+apReqInTgsRequest.toString());
 
             /*
                 Decrypt TGT from AP_REQ using secret key of TGS to retrieve session key
@@ -458,6 +464,6 @@ public class KeyDistributionCentre {
                         encryptionDataForEncKdcRep.getCipherText().getBytes(StandardCharsets.UTF_8)))
                 .build();
 
-        System.out.println("ciphertext"+encryptionDataForEncKdcRep.getCipherText());
+//        System.out.println("ciphertext"+encryptionDataForEncKdcRep.getCipherText());
     }
 }

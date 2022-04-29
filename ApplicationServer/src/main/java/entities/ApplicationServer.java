@@ -43,7 +43,7 @@ public class ApplicationServer {
              */
             byte[] receivingDataBuffer = new byte[10000];
 
-            System.out.println("Waiting for client request...");
+            System.out.println("Waiting for client request...\n");
 
             /* Receive data from the client and store in inputPacket */
             DatagramPacket inputPacket = new DatagramPacket(receivingDataBuffer, receivingDataBuffer.length);
@@ -104,6 +104,9 @@ public class ApplicationServer {
 
                 /* Send the created packet to client */
                 serverSocket.send(replyPacket);
+                System.out.println("Sent AP Reply to client: \n"+ replyForClient.toString());
+                System.out.println();
+
             }
 
         } catch (Exception e) {
@@ -143,6 +146,7 @@ public class ApplicationServer {
             /* Decrypt Authenticator from client request to perform client authentication */
             UnencryptedAuthenticator unencryptedAuthenticator = getUnencryptedAuthenticatorFromClientRequest();
 
+            System.out.println("Received Service Request from client "+unencryptedAuthenticator.getCname().getNameString());
             /*
             CHECKS ON AUTHENTICATOR:
             1. Is Timestamp recent? (if issued maximum 10 minutes before)
